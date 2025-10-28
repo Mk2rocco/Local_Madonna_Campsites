@@ -56,20 +56,20 @@ The networking and layout related environment variables from the TRMNL build
 ### One-shot PNG render
 
 ```bash
-RUN_MODE=once OUTPUT=/tmp/render.png TZ_NAME=America/Los_Angeles python app_numbers.py
+RUN_MODE=once OUTPUT=/tmp/render.png TZ_NAME=America/Los_Angeles python local_madonna_sites.py
 ```
 
 ### Flask server (development/testing)
 
 ```bash
-PORT=8080 TZ_NAME=America/Los_Angeles python app_numbers.py
+PORT=8080 TZ_NAME=America/Los_Angeles python local_madonna_sites.py
 # Visit http://<pi-address>:8080/render.png
 ```
 
 ### Inky Impression loop
 
 ```bash
-RUN_MODE=inky TZ_NAME=America/Los_Angeles python app_numbers.py
+RUN_MODE=inky TZ_NAME=America/Los_Angeles python local_madonna_sites.py
 ```
 
 The loop refreshes every `INKY_REFRESH_SECONDS` seconds.  Use `RUN_MODE=inky_once`
@@ -90,7 +90,7 @@ Type=simple
 WorkingDirectory=/home/pi/local_madonna_campsites
 Environment="TZ_NAME=America/Los_Angeles"
 Environment="RUN_MODE=inky"
-ExecStart=/home/pi/.venv/campsites/bin/python app_numbers.py
+ExecStart=/home/pi/.venv/campsites/bin/python local_madonna_sites.py
 Restart=on-failure
 
 [Install]

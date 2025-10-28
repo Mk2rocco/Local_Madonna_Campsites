@@ -26,12 +26,11 @@ Inky Impression loop (updates every 15 minutes by default):
 """
 
 from __future__ import annotations
-import io, os, re, time, socket, hashlib, logging
+import io, os, re, time, socket, hashlib, logging, importlib
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import requests
-from flask import Flask, send_file, request, make_response
 from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
 
@@ -41,6 +40,20 @@ try:
 except Exception:  # pragma: no cover - hardware optional
     auto_detect_inky = None
     _INKY_AVAILABLE = False
+
+# Flask is optional—only needed for server mode.
+_flask_spec = importlib.util.find_spec("flask")
+if _flask_spec is not None:
+    flask_module = importlib.import_module("flask")
+    Flask = flask_module.Flask
+    send_file = flask_module.send_file
+    request = flask_module.request
+    make_response = flask_module.make_response
+else:  # pragma: no cover - depends on environment
+    Flask = None
+    send_file = None
+    request = None
+    make_response = None
 
 # ---------- Config ----------
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -676,22 +689,23 @@ def run_inky_display(loop: bool = True):
 
 
 # ---------- HTTP server ----------
-app = Flask(__name__)
+if Flask is not None:
+    app = Flask(__name__)
 
+    @app.get("/render.png")
+    def http_render():
+        force = request.args.get("force") is not None
+        content = render_cached(force=force)
+        resp = make_response(send_file(io.BytesIO(content), mimetype="image/png", max_age=0))
+        resp.headers["Cache-Control"] = "no-store, max-age=0"
+        return resp
 
-@app.get("/render.png")
-def http_render():
-    force = request.args.get("force") is not None
-    content = render_cached(force=force)
-    resp = make_response(send_file(io.BytesIO(content), mimetype="image/png", max_age=0))
-    resp.headers["Cache-Control"] = "no-store, max-age=0"
-    return resp
-
-
-@app.get("/healthz")
-def healthz():
-    pulled = _last_fetched_utc.astimezone(LOCAL_TZ).isoformat() if _last_fetched_utc else None
-    return {"ok": True, "last_error": _last_error, "last_ok_fetched_at": pulled, "tz": TZ_NAME}
+    @app.get("/healthz")
+    def healthz():
+        pulled = _last_fetched_utc.astimezone(LOCAL_TZ).isoformat() if _last_fetched_utc else None
+        return {"ok": True, "last_error": _last_error, "last_ok_fetched_at": pulled, "tz": TZ_NAME}
+else:  # pragma: no cover - depends on environment
+    app = None
 
 
 # ---------- Server bootstrap ----------
@@ -715,6 +729,9 @@ def _can_bind(port: int) -> bool:
 
 
 def start_server():
+    if Flask is None or app is None:
+        log.error("Flask is not installed; install it or use RUN_MODE=inky/once.")
+        raise SystemExit(1)
     p = PORT
     tries = 0
     while tries < PORT_SCAN_MAX and not _can_bind(p):
