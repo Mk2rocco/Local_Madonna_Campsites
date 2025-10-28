@@ -10,10 +10,10 @@ Inky Impression 7.3" e-paper display directly.
 * Python 3.9+
 * Virtual environment with the following packages:
   * `requests`
-  * `flask`
   * `Pillow`
   * `beautifulsoup4`
   * `inky` (installable from Pimoroni's package repository)
+  * `flask` **(optional; only required for the HTTP server mode)**
 * Network access to `https://gooutsideandplay.org` and `https://api.weather.gov`
 
 On the Pi you can install dependencies into a virtual environment:
@@ -24,7 +24,9 @@ sudo apt install python3-venv python3-pip libjpeg-dev zlib1g-dev
 python3 -m venv ~/.venv/campsites
 source ~/.venv/campsites/bin/activate
 pip install -U pip wheel
-pip install requests flask pillow beautifulsoup4 inky
+pip install requests pillow beautifulsoup4 inky
+# Install Flask only if you plan to run the HTTP server
+pip install flask
 ```
 
 ## Environment variables
@@ -44,6 +46,10 @@ Pi build:
 
 The networking and layout related environment variables from the TRMNL build
 (`SAFE_LEFT`, `TITLE`, etc.) are also supported.
+
+> **Note:** When you run with `RUN_MODE=inky`, `inky_once`, or `once`, the Flask
+> dependency is not needed—the script talks directly to the display or writes a
+> PNG and exits.
 
 ## Usage
 
