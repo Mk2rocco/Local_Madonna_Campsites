@@ -37,9 +37,11 @@ from bs4 import BeautifulSoup
 try:
     from inky.auto import auto as auto_detect_inky
     _INKY_AVAILABLE = True
-except Exception:  # pragma: no cover - hardware optional
+    _INKY_IMPORT_ERROR = None
+except Exception as exc:  # pragma: no cover - hardware optional
     auto_detect_inky = None
     _INKY_AVAILABLE = False
+    _INKY_IMPORT_ERROR = str(exc)
 
 # Flask is optional—only needed for server mode.
 _flask_spec = importlib.util.find_spec("flask")
@@ -650,7 +652,15 @@ def _apply_inky_border(inky_display):
 
 def run_inky_display(loop: bool = True):
     if not _INKY_AVAILABLE or auto_detect_inky is None:
-        log.error("Inky display support requires the 'inky' library on the Raspberry Pi.")
+        extra = "Install it with 'pip install inky' inside your Pi virtualenv."
+        if _INKY_IMPORT_ERROR:
+            log.error(
+                "Inky display support requires the 'inky' library on the Raspberry Pi (import error: %s). %s",
+                _INKY_IMPORT_ERROR,
+                extra,
+            )
+        else:
+            log.error("Inky display support requires the 'inky' library on the Raspberry Pi. %s", extra)
         return
     try:
         verbose = bool(int(os.getenv("INKY_VERBOSE", "0")))
