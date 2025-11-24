@@ -39,7 +39,7 @@ sudo apt install python3-venv python3-pip libjpeg-dev zlib1g-dev libopenjp2-7
 python3 -m venv ~/.venv/campsites
 source ~/.venv/campsites/bin/activate
 pip install -U pip wheel
-pip install requests pillow beautifulsoup4 inky
+pip install requests pillow beautifulsoup4 "inky[rpi]"
 # Install Flask only if you plan to run the HTTP server
 pip install flask
 ```
