@@ -44,6 +44,10 @@ pip install requests pillow beautifulsoup4 inky
 pip install flask
 ```
 
+If you see `Inky display support requires the 'inky' library` when running
+`RUN_MODE=inky`, re-run `pip install inky` inside the same virtual environment
+to ensure the hardware driver is present.
+
 ## Environment variables
 
 The renderer is controlled by environment variables.  Important ones for the
