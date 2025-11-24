@@ -34,7 +34,8 @@ On the Pi you can install dependencies into a virtual environment:
 
 ```bash
 sudo apt update
-sudo apt install python3-venv python3-pip libjpeg-dev zlib1g-dev
+sudo apt install python3-venv python3-pip libjpeg-dev zlib1g-dev libopenjp2-7
+# libopenjp2-7 satisfies Pillow's JPEG2000 dependency (fixes libopenjp2.so.7 errors)
 python3 -m venv ~/.venv/campsites
 source ~/.venv/campsites/bin/activate
 pip install -U pip wheel
