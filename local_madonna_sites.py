@@ -34,12 +34,15 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
 
-try:
-    from inky.auto import auto as auto_detect_inky
-    _INKY_AVAILABLE = True
-except Exception:  # pragma: no cover - hardware optional
-    auto_detect_inky = None
-    _INKY_AVAILABLE = False
+def _import_inky():
+    try:
+        from inky.auto import auto as auto_detect_inky  # type: ignore
+        return True, auto_detect_inky, None
+    except Exception as exc:  # pragma: no cover - hardware optional
+        return False, None, f"{type(exc).__name__}: {exc}"
+
+
+_INKY_AVAILABLE, auto_detect_inky, _INKY_IMPORT_ERROR = _import_inky()
 
 # Flask is optional—only needed for server mode.
 _flask_spec = importlib.util.find_spec("flask")
@@ -650,7 +653,22 @@ def _apply_inky_border(inky_display):
 
 def run_inky_display(loop: bool = True):
     if not _INKY_AVAILABLE or auto_detect_inky is None:
-        log.error("Inky display support requires the 'inky' library on the Raspberry Pi.")
+        extra = (
+            "Install it with 'pip install "
+            '"inky[rpi]"'" inside your Pi virtualenv, then 'sudo apt install -y \n"
+            "python3-rpi.gpio python3-spidev' on Raspberry Pi OS."
+        )
+        if _INKY_IMPORT_ERROR:
+            log.error(
+                "Inky display support requires the 'inky' library on the Raspberry Pi (import error: %s). %s",
+                _INKY_IMPORT_ERROR,
+                extra,
+            )
+        else:
+            log.error(
+                "Inky display support requires the 'inky' library on the Raspberry Pi (import error: unknown). %s",
+                extra,
+            )
         return
     try:
         verbose = bool(int(os.getenv("INKY_VERBOSE", "0")))

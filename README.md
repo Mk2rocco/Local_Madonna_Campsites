@@ -4,6 +4,20 @@ This repository contains a Raspberry Pi friendly renderer for Mt. Madonna
 campsite availability.  It can serve a PNG to browsers or update a Pimoroni
 Inky Impression 7.3" e-paper display directly.
 
+## Get the code onto your Pi
+
+Clone the repository using your own GitHub username or organization in the
+URL (replace the placeholder, and do **not** include the angle brackets):
+
+```bash
+sudo apt update && sudo apt install -y git
+git clone https://github.com/<YOUR_GITHUB_USERNAME_OR_ORG>/Local_Madonna_Campsites.git
+cd Local_Madonna_Campsites
+```
+
+If you downloaded a ZIP instead of cloning, unzip it and `cd` into the
+extracted `Local_Madonna_Campsites` folder before continuing.
+
 ## Requirements
 
 * Raspberry Pi Zero W (or newer) running Raspberry Pi OS Bookworm/Bullseye
@@ -20,14 +34,26 @@ On the Pi you can install dependencies into a virtual environment:
 
 ```bash
 sudo apt update
-sudo apt install python3-venv python3-pip libjpeg-dev zlib1g-dev
+sudo apt install python3-venv python3-pip libjpeg-dev zlib1g-dev libopenjp2-7
+# libopenjp2-7 satisfies Pillow's JPEG2000 dependency (fixes libopenjp2.so.7 errors)
 python3 -m venv ~/.venv/campsites
 source ~/.venv/campsites/bin/activate
 pip install -U pip wheel
-pip install requests pillow beautifulsoup4 inky
+pip install requests pillow beautifulsoup4 "inky[rpi]"
 # Install Flask only if you plan to run the HTTP server
 pip install flask
 ```
+
+If you see `Inky display support requires the 'inky' library` when running
+`RUN_MODE=inky`, ensure you are inside the same virtual environment and run:
+
+```bash
+pip install --no-cache-dir "inky[rpi]"
+sudo apt install -y python3-rpi.gpio python3-spidev
+```
+
+The apt packages provide the Raspberry Pi GPIO/SPI drivers that the Inky
+library expects at import time.
 
 ## Environment variables
 
@@ -87,7 +113,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/pi/local_madonna_campsites
+WorkingDirectory=/home/pi/Local_Madonna_Campsites
 Environment="TZ_NAME=America/Los_Angeles"
 Environment="RUN_MODE=inky"
 ExecStart=/home/pi/.venv/campsites/bin/python local_madonna_sites.py
