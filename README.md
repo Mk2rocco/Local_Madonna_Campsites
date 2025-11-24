@@ -45,15 +45,8 @@ pip install flask
 ```
 
 If you see `Inky display support requires the 'inky' library` when running
-`RUN_MODE=inky`, ensure you are inside the same virtual environment and run:
-
-```bash
-pip install --no-cache-dir "inky[rpi]"
-sudo apt install -y python3-rpi.gpio python3-spidev
-```
-
-The apt packages provide the Raspberry Pi GPIO/SPI drivers that the Inky
-library expects at import time.
+`RUN_MODE=inky`, re-run `pip install inky` inside the same virtual environment
+to ensure the hardware driver is present.
 
 ## Environment variables
 
