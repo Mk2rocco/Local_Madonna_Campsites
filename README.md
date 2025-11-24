@@ -4,6 +4,20 @@ This repository contains a Raspberry Pi friendly renderer for Mt. Madonna
 campsite availability.  It can serve a PNG to browsers or update a Pimoroni
 Inky Impression 7.3" e-paper display directly.
 
+## Get the code onto your Pi
+
+Clone the repository using your own GitHub username or organization in the
+URL (replace the placeholder, and do **not** include the angle brackets):
+
+```bash
+sudo apt update && sudo apt install -y git
+git clone https://github.com/<YOUR_GITHUB_USERNAME_OR_ORG>/Local_Madonna_Campsites.git
+cd Local_Madonna_Campsites
+```
+
+If you downloaded a ZIP instead of cloning, unzip it and `cd` into the
+extracted `Local_Madonna_Campsites` folder before continuing.
+
 ## Requirements
 
 * Raspberry Pi Zero W (or newer) running Raspberry Pi OS Bookworm/Bullseye
@@ -87,7 +101,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/pi/local_madonna_campsites
+WorkingDirectory=/home/pi/Local_Madonna_Campsites
 Environment="TZ_NAME=America/Los_Angeles"
 Environment="RUN_MODE=inky"
 ExecStart=/home/pi/.venv/campsites/bin/python local_madonna_sites.py
