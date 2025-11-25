@@ -761,10 +761,12 @@ def run_inky_display(loop: bool = True):
                 extra,
             )
         return
+
     try:
         verbose = bool(int(os.getenv("INKY_VERBOSE", "0")))
     except Exception:
         verbose = False
+
     try:
         inky = auto_detect_inky(ask_user=False, verbose=verbose)
     except Exception as exc:  # pragma: no cover - hardware only
@@ -784,38 +786,40 @@ def run_inky_display(loop: bool = True):
     cross_refresh = max(0, INKY_CROSS_RENDER_SECONDS)
     log.info("Starting Inky refresh loop (%ss interval)", refresh)
 
-    cached_images = render_all_pngs(force=True, refresh_window=cross_refresh)
-    log.info("Initial cached_images keys: %s", list(cached_images))
+    # Shared state between threads
+    cached_images: Dict[str, Image.Image] = render_all_pngs(force=True, refresh_window=cross_refresh)
     selected_key = INKY_BUTTON_IMAGE_KEYS.get("A", "madonna")
     redraw_needed = threading.Event()
-    redraw_needed.set()
+    redraw_needed.set()  # draw initial image
+    cache_lock = threading.Lock()
 
     def _show_selection():
-        img = cached_images.get(selected_key)
-        if img is None:
-            first_available = next(iter(cached_images.items()), (None, None))
-            if first_available[1] is None:
-                log.error("No cached images available to display")
+        nonlocal selected_key
+        with cache_lock:
+            if not cached_images:
+                log.error("No cached_images available when trying to show selection %s", selected_key)
                 return
-            fallback_key, img = first_available
-            log.warning(
-                "No cached image for key %s; falling back to %s (available keys: %s)",
-                selected_key,
-                fallback_key,
-                list(cached_images),
-            )
-            # Keep the user's selection sticky for the next refresh, but show something
-            # immediately so the loop does not fail silently.
-        prepared = prepare_inky_image(img, inky)
+
+            img = cached_images.get(selected_key)
+            if img is None:
+                # Fallback so we always show *something*
+                fallback_key, img = next(iter(cached_images.items()))
+                log.warning(
+                    "No cached image for key %s; falling back to %s (available keys: %s)",
+                    selected_key,
+                    fallback_key,
+                    list(cached_images),
+                )
+
+            prepared = prepare_inky_image(img, inky)
+
         inky.set_image(prepared, saturation=INKY_SATURATION)
         inky.show()
         log.info("Inky display updated (%s) at %s", selected_key, datetime.now(LOCAL_TZ).isoformat())
 
     def _bind_button(name: str, key: str):
         if not _INKY_BUTTONS_AVAILABLE or Button is None:
-            log.warning(
-                "GPIO buttons unavailable; skipping binding for %s (import failed)", name
-            )
+            log.debug("GPIO buttons unavailable; skipping binding for %s", name)
             return None
         pin = INKY_BUTTON_PINS.get(name)
         if pin is None:
@@ -841,21 +845,39 @@ def run_inky_display(loop: bool = True):
             log.warning("Unable to bind button %s on pin %s: %s", name, pin, exc)
             return None
 
+    # Background thread: periodically refresh cached PNGs
+    def _render_thread():
+        nonlocal cached_images
+        if refresh <= 0:
+            log.info("INKY_REFRESH_SECONDS <= 0; background renderer not started")
+            return
+        while True:
+            try:
+                time.sleep(refresh)
+                log.info("Background refresh: rendering all PNGs")
+                new_images = render_all_pngs(force=True, refresh_window=cross_refresh)
+                if new_images:
+                    with cache_lock:
+                        cached_images.update(new_images)
+                    log.info("Background refresh updated images: %s", list(new_images.keys()))
+                    # Optional: force a redraw with the current selection using fresh data
+                    redraw_needed.set()
+            except Exception as exc:
+                log.exception("Background render thread error: %s", exc)
+
+    # Start background renderer
+    if refresh > 0:
+        t = threading.Thread(target=_render_thread, daemon=True)
+        t.start()
+
+    # Bind buttons
     buttons = {name: _bind_button(name, key) for name, key in INKY_BUTTON_IMAGE_KEYS.items()}
     if not any(buttons.values()):
         log.warning("No Inky buttons were bound; check wiring or gpiozero configuration")
 
-    next_refresh = time.time()
+    # Main loop: ONLY handles redraw events
     while True:
         try:
-            now = time.time()
-            if refresh > 0 and now >= next_refresh:
-                new_images = render_all_pngs(force=True, refresh_window=cross_refresh)
-                if new_images:
-                    cached_images.update(new_images)
-                next_refresh = now + refresh
-                redraw_needed.set()
-
             if redraw_needed.is_set():
                 _show_selection()
                 redraw_needed.clear()
@@ -865,7 +887,7 @@ def run_inky_display(loop: bool = True):
         except Exception as exc:  # pragma: no cover - hardware/network issues
             log.exception("Failed to refresh Inky display: %s", exc)
 
-        if not loop or refresh <= 0:
+        if not loop:
             break
         time.sleep(0.1)
 
