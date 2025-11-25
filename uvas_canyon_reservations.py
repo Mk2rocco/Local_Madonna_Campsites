@@ -37,6 +37,7 @@ FOOTER_H    = int(os.getenv("FOOTER_H", "30"))
 
 DATA_TIMEOUT  = float(os.getenv("DATA_TIMEOUT", "8"))
 CACHE_SECONDS = int(os.getenv("CACHE_SECONDS", "300"))
+DAY_USE_TIMEOUT = float(os.getenv("DAY_USE_TIMEOUT", "20"))
 
 OUTPUT = os.getenv("OUTPUT_UVAS", os.path.join(os.getcwd(), "render_uvas.png"))
 
@@ -240,14 +241,14 @@ def fetch_day_use_remaining(for_dates: List[datetime]) -> Dict[datetime.date, Op
     session = requests.Session()
     session.headers.update({"User-Agent": "trmnl-dayuse/1.0"})
 
-    deadline = time.time() + max(DATA_TIMEOUT, 1.0)
+    deadline = time.time() + max(DAY_USE_TIMEOUT, 1.0)
     deadline_hit = False
 
     def remaining_timeout() -> float:
         remaining = deadline - time.time()
         if remaining <= 0:
             return 1.0
-        return min(DATA_TIMEOUT, max(1.0, remaining))
+        return min(DAY_USE_TIMEOUT, max(1.0, remaining))
 
     def deadline_reached() -> bool:
         nonlocal deadline_hit
@@ -265,7 +266,7 @@ def fetch_day_use_remaining(for_dates: List[datetime]) -> Dict[datetime.date, Op
     except TimeoutError:
         log.warning(
             "Day use availability fetch exceeded %.1fs deadline before category load",
-            DATA_TIMEOUT,
+            DAY_USE_TIMEOUT,
         )
         return {dt.date(): None for dt in for_dates}
     except Exception as exc:
@@ -352,7 +353,7 @@ def fetch_day_use_remaining(for_dates: List[datetime]) -> Dict[datetime.date, Op
     if deadline_hit:
         log.warning(
             "Day use availability fetch exceeded %.1fs deadline; returning partial data",
-            DATA_TIMEOUT,
+            DAY_USE_TIMEOUT,
         )
     results: Dict[datetime.date, Optional[int]] = {}
     for key, dt in target_map.items():
