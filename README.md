@@ -52,6 +52,7 @@ local_madonna_sites.py`).
   * `Pillow`
   * `beautifulsoup4`
   * `inky` (installable from Pimoroni's package repository)
+  * `lgpio` (for stable GPIOZero button handling)
   * `flask` **(optional; only required for the HTTP server mode)**
 * Network access to `https://gooutsideandplay.org` and `https://api.weather.gov`
 
@@ -64,7 +65,7 @@ sudo apt install python3-venv python3-pip libjpeg-dev zlib1g-dev libopenjp2-7
 python3 -m venv ~/.venv/campsites
 source ~/.venv/campsites/bin/activate
 pip install -U pip wheel
-pip install requests pillow beautifulsoup4 "inky[rpi]"
+pip install requests pillow beautifulsoup4 "inky[rpi]" lgpio
 # Install Flask only if you plan to run the HTTP server
 pip install flask
 ```
@@ -157,12 +158,34 @@ Type=simple
 WorkingDirectory=/home/pi/Local_Madonna_Campsites
 Environment="TZ_NAME=America/Los_Angeles"
 Environment="RUN_MODE=inky"
+Environment="GPIOZERO_PIN_FACTORY=lgpio"
 ExecStart=/home/pi/.venv/campsites/bin/python local_madonna_sites.py
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+Install `lgpio` inside the same virtual environment used by the service (this
+prevents GPIOZero from falling back to slower drivers and fixes button edge
+notifications):
+
+```bash
+source ~/.venv/campsites/bin/activate
+pip install lgpio
+deactivate
+```
+
+After editing the service file, reload and restart:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart campsites.service
+```
+
+With `GPIOZERO_PIN_FACTORY=lgpio` the Inky buttons will bind cleanly and you
+should see log entries such as `[INFO] Button B pressed; switching to group`
+when pressing the physical controls.
 
 Enable it with:
 
