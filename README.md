@@ -74,17 +74,6 @@ sudo apt install -y python3-rpi.gpio python3-spidev
 The apt packages provide the Raspberry Pi GPIO/SPI drivers that the Inky
 library expects at import time.
 
-If you see a message like `Woah there, some pins we need are in use` (or chip
-select/data/command pins reported as "claimed by inky"), another process is
-already talking to the display—usually a running `campsites.service`. Stop it
-before running the script manually:
-
-```bash
-sudo systemctl stop campsites.service
-```
-
-Then re-run the script, or reboot to clear any lingering pin reservations.
-
 ### Enable SPI for the Inky HAT
 
 Some Raspberry Pi models (notably Pi 5) need an explicit SPI overlay for the
