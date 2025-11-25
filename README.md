@@ -20,6 +20,12 @@ extracted `Local_Madonna_Campsites` folder before continuing.
 
 ## Update the code on your Pi over SSH
 
+From your laptop or desktop you can refresh the Pi in one step over SSH:
+
+```bash
+ssh pi@<YOUR_PI_HOSTNAME_OR_IP> "cd ~/Local_Madonna_Campsites && git pull"
+```
+
 Whenever you want the latest changes from GitHub, SSH into the Pi and run:
 
 ```bash
