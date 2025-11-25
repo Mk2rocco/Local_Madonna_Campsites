@@ -677,6 +677,12 @@ def run_inky_display(loop: bool = True):
         inky = auto_detect_inky(ask_user=False, verbose=verbose)
     except Exception as exc:  # pragma: no cover - hardware only
         log.error("Failed to initialize Inky display: %s", exc)
+        msg = str(exc).lower()
+        if "pins" in msg and "in use" in msg:
+            log.error(
+                "Another process is already using the Inky pins (often a running systemd service). "
+                "Stop it with 'sudo systemctl stop campsites.service' before running manually."
+            )
         return
 
     _update_resolution(getattr(inky, "width", RES_W), getattr(inky, "height", RES_H))
