@@ -123,6 +123,8 @@ INKY_BUTTON_PINS = {
     "C": int(os.getenv("INKY_BUTTON_C_PIN", "16")),
 }
 INKY_BUTTON_HOLD_TIME = float(os.getenv("INKY_BUTTON_HOLD", "0.05"))
+INKY_BUTTON_BOUNCE = float(os.getenv("INKY_BUTTON_BOUNCE", "0.05"))
+INKY_BUTTON_PULL_UP = bool(int(os.getenv("INKY_BUTTON_PULL_UP", "0")))
 
 # Use the display refresh interval as the cadence for cross-renderer updates so
 # the button toggles only swap between cached PNGs. Each button maps to a
@@ -810,12 +812,18 @@ def run_inky_display(loop: bool = True):
 
     def _bind_button(name: str, key: str):
         if not _INKY_BUTTONS_AVAILABLE or Button is None:
+            log.debug("GPIO buttons unavailable; skipping binding for %s", name)
+            return None
+        pin = INKY_BUTTON_PINS.get(name)
+        if pin is None:
             return None
         try:
-            pin = INKY_BUTTON_PINS.get(name)
-            if pin is None:
-                return None
-            btn = Button(pin, hold_time=INKY_BUTTON_HOLD_TIME)
+            btn = Button(
+                pin,
+                hold_time=INKY_BUTTON_HOLD_TIME,
+                bounce_time=INKY_BUTTON_BOUNCE,
+                pull_up=INKY_BUTTON_PULL_UP,
+            )
 
             def _handler():
                 nonlocal selected_key
@@ -830,6 +838,8 @@ def run_inky_display(loop: bool = True):
             return None
 
     buttons = {name: _bind_button(name, key) for name, key in INKY_BUTTON_IMAGE_KEYS.items()}
+    if not any(buttons.values()):
+        log.warning("No Inky buttons were bound; check wiring or gpiozero configuration")
 
     next_refresh = time.time()
     while True:
