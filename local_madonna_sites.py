@@ -26,8 +26,10 @@ Inky Impression loop (updates every 15 minutes by default):
 """
 
 from __future__ import annotations
-import io, os, re, time, socket, hashlib, logging, importlib
+import io, os, re, time, socket, hashlib, logging, importlib, subprocess, sys
 from datetime import datetime, timezone
+from pathlib import Path
+import threading
 from typing import Dict, List, Optional
 
 import requests
@@ -42,6 +44,14 @@ except Exception as exc:  # pragma: no cover - hardware optional
     auto_detect_inky = None
     _INKY_AVAILABLE = False
     _INKY_IMPORT_ERROR = str(exc)
+
+try:  # pragma: no cover - hardware optional
+    from gpiozero import Button
+    _GPIOZERO_AVAILABLE = True
+except Exception as exc:  # pragma: no cover - hardware optional
+    Button = None
+    _GPIOZERO_AVAILABLE = False
+    _GPIOZERO_IMPORT_ERROR = str(exc)
 
 # Flask is optional—only needed for server mode.
 _flask_spec = importlib.util.find_spec("flask")
@@ -102,6 +112,12 @@ INKY_REFRESH_SECONDS = int(os.getenv("INKY_REFRESH_SECONDS", "900"))
 INKY_SATURATION = float(os.getenv("INKY_SATURATION", "0.7"))
 INKY_ROTATE = int(os.getenv("INKY_ROTATE", "0"))  # degrees clockwise
 INKY_BORDER = os.getenv("INKY_BORDER", "white").lower()
+BUTTON_PINS = {
+    "A": 5,   # top
+    "B": 6,
+    "C": 16,
+    "D": 24,  # bottom
+}
 
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8080"))
@@ -633,6 +649,82 @@ def prepare_inky_image(pil_image: Image.Image, inky_display) -> Image.Image:
     return img
 
 
+_UPDATE_LOCK = threading.Lock()
+_INKY_BUTTONS: Dict[str, object] = {}
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def _start_thread(name: str, target):
+    thread = threading.Thread(target=target, name=name, daemon=True)
+    thread.start()
+    return thread
+
+
+def _reload_program():
+    log.info("Button A pressed: reloading program")
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+def _update_from_git():
+    if not _UPDATE_LOCK.acquire(blocking=False):
+        log.info("Update already in progress; ignoring additional request")
+        return
+    try:
+        repo_dir = _repo_root()
+        log.info("Button D pressed: running 'git pull --rebase' in %s", repo_dir)
+        result = subprocess.run(
+            ["git", "pull", "--rebase"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+        if stdout:
+            log.info("Git update output: %s", stdout)
+        if stderr:
+            log.info("Git update stderr: %s", stderr)
+        log.info("Git update completed successfully")
+    except FileNotFoundError:
+        log.error("Git is not installed; cannot update from repository")
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or exc.stdout or "").strip()
+        log.error("Git update failed (exit %s): %s", exc.returncode, stderr)
+    finally:
+        _UPDATE_LOCK.release()
+
+
+def _setup_inky_buttons():
+    if not _GPIOZERO_AVAILABLE or Button is None:
+        detail = f" ({_GPIOZERO_IMPORT_ERROR})" if '_GPIOZERO_IMPORT_ERROR' in globals() else ""
+        log.debug("Inky buttons unavailable; gpiozero not installed%s", detail)
+        return {}
+
+    buttons = {}
+    for label, pin in BUTTON_PINS.items():
+        try:
+            btn = Button(pin)
+        except Exception as exc:  # pragma: no cover - hardware only
+            log.debug("Button %s unavailable on pin %s: %s", label, pin, exc)
+            continue
+        buttons[label] = btn
+
+    if not buttons:
+        return {}
+
+    if "A" in buttons:
+        buttons["A"].when_pressed = lambda: _start_thread("reload-program", _reload_program)
+    if "D" in buttons:
+        buttons["D"].when_pressed = lambda: _start_thread("git-update", _update_from_git)
+
+    log.info("Inky buttons initialised: %s", ", ".join(sorted(buttons)))
+    return buttons
+
+
 def _apply_inky_border(inky_display):
     if not hasattr(inky_display, "set_border"):
         return
@@ -687,6 +779,10 @@ def run_inky_display(loop: bool = True):
 
     _update_resolution(getattr(inky, "width", RES_W), getattr(inky, "height", RES_H))
     _apply_inky_border(inky)
+
+    global _INKY_BUTTONS
+    if not _INKY_BUTTONS:
+        _INKY_BUTTONS = _setup_inky_buttons()
 
     refresh = max(0, INKY_REFRESH_SECONDS)
     log.info("Starting Inky refresh loop (%ss interval)", refresh)
