@@ -124,6 +124,16 @@ INKY_BUTTON_PINS = {
 }
 INKY_BUTTON_HOLD_TIME = float(os.getenv("INKY_BUTTON_HOLD", "0.05"))
 
+# Use the display refresh interval as the cadence for cross-renderer updates so
+# the button toggles only swap between cached PNGs. Each button maps to a
+# renderer key to keep the bindings explicit.
+INKY_BUTTON_IMAGE_KEYS = {
+    "A": "madonna",          # Local_Madonna_Sites
+    "B": "group",            # Madonna Group sites
+    "C": "uvas",             # Uvas Canyon reservations
+}
+INKY_CROSS_RENDER_SECONDS = int(os.getenv("INKY_CROSS_RENDER_SECONDS", str(INKY_REFRESH_SECONDS)))
+
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8080"))
 PORT_AUTO = int(os.getenv("PORT_AUTO", "1"))
@@ -630,7 +640,7 @@ def render_cached(force: bool = False, output: str = "bytes"):
     return _last_img
 
 
-def render_all_pngs(force: bool = False) -> Dict[str, Image.Image]:
+def render_all_pngs(force: bool = False, refresh_window: Optional[int] = None) -> Dict[str, Image.Image]:
     """Render and cache all three PNG variants, returning PIL images keyed by name.
 
     The button handlers only swap between the cached images in memory; we refresh
@@ -649,8 +659,9 @@ def render_all_pngs(force: bool = False) -> Dict[str, Image.Image]:
         log.exception("Failed to render primary Madonna campsites image")
 
     now_ts = time.time()
-    need_group = force or _group_bytes is None or (now_ts - _group_render_ts) >= CACHE_SECONDS
-    need_uvas = force or _uvas_bytes is None or (now_ts - _uvas_render_ts) >= CACHE_SECONDS
+    window = CACHE_SECONDS if refresh_window is None else max(0, int(refresh_window))
+    need_group = force or _group_bytes is None or (now_ts - _group_render_ts) >= window
+    need_uvas = force or _uvas_bytes is None or (now_ts - _uvas_render_ts) >= window
 
     try:
         if need_group:
@@ -768,18 +779,30 @@ def run_inky_display(loop: bool = True):
     _apply_inky_border(inky)
 
     refresh = max(0, INKY_REFRESH_SECONDS)
+    cross_refresh = max(0, INKY_CROSS_RENDER_SECONDS)
     log.info("Starting Inky refresh loop (%ss interval)", refresh)
 
-    last_images = render_all_pngs(force=True)
-    selected_key = "madonna"
+    cached_images = render_all_pngs(force=True, refresh_window=cross_refresh)
+    selected_key = INKY_BUTTON_IMAGE_KEYS.get("A", "madonna")
     redraw_needed = threading.Event()
     redraw_needed.set()
 
     def _show_selection():
-        img = last_images.get(selected_key) or next(iter(last_images.values()), None)
+        img = cached_images.get(selected_key)
         if img is None:
-            log.error("No rendered image available for display")
-            return
+            first_available = next(iter(cached_images.items()), (None, None))
+            if first_available[1] is None:
+                log.error("No cached images available to display")
+                return
+            fallback_key, img = first_available
+            log.warning(
+                "No cached image for key %s; falling back to %s (available keys: %s)",
+                selected_key,
+                fallback_key,
+                list(cached_images),
+            )
+            # Keep the user's selection sticky for the next refresh, but show something
+            # immediately so the loop does not fail silently.
         prepared = prepare_inky_image(img, inky)
         inky.set_image(prepared, saturation=INKY_SATURATION)
         inky.show()
@@ -797,6 +820,7 @@ def run_inky_display(loop: bool = True):
             def _handler():
                 nonlocal selected_key
                 selected_key = key
+                log.info("Button %s pressed; switching to %s", name, key)
                 redraw_needed.set()
 
             btn.when_pressed = _handler
@@ -805,18 +829,16 @@ def run_inky_display(loop: bool = True):
             log.debug("Unable to bind button %s: %s", name, exc)
             return None
 
-    buttons = {
-        "A": _bind_button("A", "madonna"),
-        "B": _bind_button("B", "group"),
-        "C": _bind_button("C", "uvas"),
-    }
+    buttons = {name: _bind_button(name, key) for name, key in INKY_BUTTON_IMAGE_KEYS.items()}
 
     next_refresh = time.time()
     while True:
         try:
             now = time.time()
             if refresh > 0 and now >= next_refresh:
-                last_images = render_all_pngs(force=True) or last_images
+                new_images = render_all_pngs(force=True, refresh_window=cross_refresh)
+                if new_images:
+                    cached_images.update(new_images)
                 next_refresh = now + refresh
                 redraw_needed.set()
 
