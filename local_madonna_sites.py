@@ -26,13 +26,18 @@ Inky Impression loop (updates every 15 minutes by default):
 """
 
 from __future__ import annotations
-import io, os, re, time, socket, hashlib, logging, importlib
+import io, os, re, time, socket, hashlib, logging, importlib, threading
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
+# These renderers are also available as stand-alone modules, but we keep
+# light-weight wrappers here so a single process can generate and cache all
+# three PNGs without bouncing between multiple entry points.
+import madonna_group_sites
+import uvas_canyon_reservations
 
 try:
     from inky.auto import auto as auto_detect_inky
@@ -42,6 +47,13 @@ except Exception as exc:  # pragma: no cover - hardware optional
     auto_detect_inky = None
     _INKY_AVAILABLE = False
     _INKY_IMPORT_ERROR = str(exc)
+
+try:
+    from gpiozero import Button
+    _INKY_BUTTONS_AVAILABLE = True
+except Exception:
+    Button = None
+    _INKY_BUTTONS_AVAILABLE = False
 
 # Flask is optional—only needed for server mode.
 _flask_spec = importlib.util.find_spec("flask")
@@ -98,10 +110,19 @@ PARK_ID    = os.getenv("PARK_ID", "8")
 TZ_NAME    = os.getenv("TZ_NAME", "America/Los_Angeles")
 DITHER     = int(os.getenv("DITHER", "0"))
 
+GROUP_OUTPUT = os.getenv("OUTPUT_GROUP", os.path.join(os.getcwd(), "render_groups.png"))
+UVAS_OUTPUT = os.getenv("OUTPUT_UVAS", os.path.join(os.getcwd(), "render_uvas.png"))
+
 INKY_REFRESH_SECONDS = int(os.getenv("INKY_REFRESH_SECONDS", "900"))
 INKY_SATURATION = float(os.getenv("INKY_SATURATION", "0.7"))
 INKY_ROTATE = int(os.getenv("INKY_ROTATE", "0"))  # degrees clockwise
 INKY_BORDER = os.getenv("INKY_BORDER", "white").lower()
+INKY_BUTTON_PINS = {
+    "A": int(os.getenv("INKY_BUTTON_A_PIN", "5")),
+    "B": int(os.getenv("INKY_BUTTON_B_PIN", "6")),
+    "C": int(os.getenv("INKY_BUTTON_C_PIN", "16")),
+}
+INKY_BUTTON_HOLD_TIME = float(os.getenv("INKY_BUTTON_HOLD", "0.05"))
 
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8080"))
@@ -559,13 +580,24 @@ _last_hash: Optional[str] = None
 _last_render_ts: float = 0.0
 _last_pil: Optional[Image.Image] = None
 
+# Cross-renderer caches so the Inky button toggles never trigger fresh renders.
+_group_bytes: Optional[bytes] = None
+_group_render_ts: float = 0.0
+_uvas_bytes: Optional[bytes] = None
+_uvas_render_ts: float = 0.0
+
 
 def _clear_render_cache():
     global _last_img, _last_hash, _last_render_ts, _last_pil
+    global _group_bytes, _group_render_ts, _uvas_bytes, _uvas_render_ts
     _last_img = None
     _last_hash = None
     _last_render_ts = 0.0
     _last_pil = None
+    _group_bytes = None
+    _group_render_ts = 0.0
+    _uvas_bytes = None
+    _uvas_render_ts = 0.0
 
 
 def render_cached(force: bool = False, output: str = "bytes"):
@@ -596,6 +628,53 @@ def render_cached(force: bool = False, output: str = "bytes"):
     if output == "pil":
         return _last_pil.copy()
     return _last_img
+
+
+def render_all_pngs(force: bool = False) -> Dict[str, Image.Image]:
+    """Render and cache all three PNG variants, returning PIL images keyed by name.
+
+    The button handlers only swap between the cached images in memory; we refresh
+    the underlying PNGs on the configured timer or when ``force`` is ``True``.
+    """
+    global _group_bytes, _group_render_ts, _uvas_bytes, _uvas_render_ts
+    images: Dict[str, Image.Image] = {}
+
+    try:
+        primary_img = render_cached(force=force, output="pil")
+        if primary_img is not None:
+            with open(OUTPUT, "wb") as f:
+                f.write(_image_to_png_bytes(primary_img))
+            images["madonna"] = primary_img.copy()
+    except Exception:
+        log.exception("Failed to render primary Madonna campsites image")
+
+    now_ts = time.time()
+    need_group = force or _group_bytes is None or (now_ts - _group_render_ts) >= CACHE_SECONDS
+    need_uvas = force or _uvas_bytes is None or (now_ts - _uvas_render_ts) >= CACHE_SECONDS
+
+    try:
+        if need_group:
+            _group_bytes = madonna_group_sites.render_group_sites_cached(force=True)
+            _group_render_ts = now_ts
+        if _group_bytes:
+            with open(GROUP_OUTPUT, "wb") as f:
+                f.write(_group_bytes)
+            images["group"] = Image.open(io.BytesIO(_group_bytes)).convert("RGB")
+    except Exception:
+        log.exception("Failed to render Madonna group sites image")
+
+    try:
+        if need_uvas:
+            _uvas_bytes = uvas_canyon_reservations.render_uvas_cached(force=True)
+            _uvas_render_ts = now_ts
+        if _uvas_bytes:
+            with open(UVAS_OUTPUT, "wb") as f:
+                f.write(_uvas_bytes)
+            images["uvas"] = Image.open(io.BytesIO(_uvas_bytes)).convert("RGB")
+    except Exception:
+        log.exception("Failed to render Uvas Canyon reservations image")
+
+    return images
 
 def _update_resolution(width: int, height: int):
     global RES_W, RES_H
@@ -690,16 +769,60 @@ def run_inky_display(loop: bool = True):
 
     refresh = max(0, INKY_REFRESH_SECONDS)
     log.info("Starting Inky refresh loop (%ss interval)", refresh)
+
+    last_images = render_all_pngs(force=True)
+    selected_key = "madonna"
+    redraw_needed = threading.Event()
+    redraw_needed.set()
+
+    def _show_selection():
+        img = last_images.get(selected_key) or next(iter(last_images.values()), None)
+        if img is None:
+            log.error("No rendered image available for display")
+            return
+        prepared = prepare_inky_image(img, inky)
+        inky.set_image(prepared, saturation=INKY_SATURATION)
+        inky.show()
+        log.info("Inky display updated (%s) at %s", selected_key, datetime.now(LOCAL_TZ).isoformat())
+
+    def _bind_button(name: str, key: str):
+        if not _INKY_BUTTONS_AVAILABLE or Button is None:
+            return None
+        try:
+            pin = INKY_BUTTON_PINS.get(name)
+            if pin is None:
+                return None
+            btn = Button(pin, hold_time=INKY_BUTTON_HOLD_TIME)
+
+            def _handler():
+                nonlocal selected_key
+                selected_key = key
+                redraw_needed.set()
+
+            btn.when_pressed = _handler
+            return btn
+        except Exception as exc:  # pragma: no cover - hardware specific
+            log.debug("Unable to bind button %s: %s", name, exc)
+            return None
+
+    buttons = {
+        "A": _bind_button("A", "madonna"),
+        "B": _bind_button("B", "group"),
+        "C": _bind_button("C", "uvas"),
+    }
+
+    next_refresh = time.time()
     while True:
         try:
-            pil_image = render_cached(force=False, output="pil")
-            if pil_image is None:
-                log.error("No rendered image available for display")
-            else:
-                prepared = prepare_inky_image(pil_image, inky)
-                inky.set_image(prepared, saturation=INKY_SATURATION)
-                inky.show()
-                log.info("Inky display updated at %s", datetime.now(LOCAL_TZ).isoformat())
+            now = time.time()
+            if refresh > 0 and now >= next_refresh:
+                last_images = render_all_pngs(force=True) or last_images
+                next_refresh = now + refresh
+                redraw_needed.set()
+
+            if redraw_needed.is_set():
+                _show_selection()
+                redraw_needed.clear()
         except KeyboardInterrupt:  # pragma: no cover - manual stop
             log.info("Inky loop interrupted by user")
             break
@@ -708,7 +831,7 @@ def run_inky_display(loop: bool = True):
 
         if not loop or refresh <= 0:
             break
-        time.sleep(refresh)
+        time.sleep(0.1)
 
 
 # ---------- HTTP server ----------
@@ -770,10 +893,12 @@ def start_server():
 # ---------- Main ----------
 if __name__ == "__main__":
     if RUN_MODE == "once":
-        content = render_cached(force=True)
-        with open(OUTPUT, "wb") as f:
-            f.write(content)
+        images = render_all_pngs(force=True)
         print(f"Saved {OUTPUT}")
+        if images.get("group"):
+            print(f"Saved {GROUP_OUTPUT}")
+        if images.get("uvas"):
+            print(f"Saved {UVAS_OUTPUT}")
     elif RUN_MODE == "inky_once":
         run_inky_display(loop=False)
     elif RUN_MODE == "inky":
