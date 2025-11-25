@@ -785,6 +785,7 @@ def run_inky_display(loop: bool = True):
     log.info("Starting Inky refresh loop (%ss interval)", refresh)
 
     cached_images = render_all_pngs(force=True, refresh_window=cross_refresh)
+    log.info("Initial cached_images keys: %s", list(cached_images))
     selected_key = INKY_BUTTON_IMAGE_KEYS.get("A", "madonna")
     redraw_needed = threading.Event()
     redraw_needed.set()
@@ -812,7 +813,9 @@ def run_inky_display(loop: bool = True):
 
     def _bind_button(name: str, key: str):
         if not _INKY_BUTTONS_AVAILABLE or Button is None:
-            log.debug("GPIO buttons unavailable; skipping binding for %s", name)
+            log.warning(
+                "GPIO buttons unavailable; skipping binding for %s (import failed)", name
+            )
             return None
         pin = INKY_BUTTON_PINS.get(name)
         if pin is None:
@@ -832,9 +835,10 @@ def run_inky_display(loop: bool = True):
                 redraw_needed.set()
 
             btn.when_pressed = _handler
+            log.info("Inky button %s bound to pin %s", name, pin)
             return btn
         except Exception as exc:  # pragma: no cover - hardware specific
-            log.debug("Unable to bind button %s: %s", name, exc)
+            log.warning("Unable to bind button %s on pin %s: %s", name, pin, exc)
             return None
 
     buttons = {name: _bind_button(name, key) for name, key in INKY_BUTTON_IMAGE_KEYS.items()}
