@@ -33,6 +33,9 @@ from typing import Dict, List, Optional
 import requests
 from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
+# These renderers are also available as stand-alone modules, but we keep
+# light-weight wrappers here so a single process can generate and cache all
+# three PNGs without bouncing between multiple entry points.
 import madonna_group_sites
 import uvas_canyon_reservations
 
@@ -577,13 +580,24 @@ _last_hash: Optional[str] = None
 _last_render_ts: float = 0.0
 _last_pil: Optional[Image.Image] = None
 
+# Cross-renderer caches so the Inky button toggles never trigger fresh renders.
+_group_bytes: Optional[bytes] = None
+_group_render_ts: float = 0.0
+_uvas_bytes: Optional[bytes] = None
+_uvas_render_ts: float = 0.0
+
 
 def _clear_render_cache():
     global _last_img, _last_hash, _last_render_ts, _last_pil
+    global _group_bytes, _group_render_ts, _uvas_bytes, _uvas_render_ts
     _last_img = None
     _last_hash = None
     _last_render_ts = 0.0
     _last_pil = None
+    _group_bytes = None
+    _group_render_ts = 0.0
+    _uvas_bytes = None
+    _uvas_render_ts = 0.0
 
 
 def render_cached(force: bool = False, output: str = "bytes"):
@@ -617,7 +631,12 @@ def render_cached(force: bool = False, output: str = "bytes"):
 
 
 def render_all_pngs(force: bool = False) -> Dict[str, Image.Image]:
-    """Render and cache all three PNG variants, returning PIL images keyed by name."""
+    """Render and cache all three PNG variants, returning PIL images keyed by name.
+
+    The button handlers only swap between the cached images in memory; we refresh
+    the underlying PNGs on the configured timer or when ``force`` is ``True``.
+    """
+    global _group_bytes, _group_render_ts, _uvas_bytes, _uvas_render_ts
     images: Dict[str, Image.Image] = {}
 
     try:
@@ -629,19 +648,29 @@ def render_all_pngs(force: bool = False) -> Dict[str, Image.Image]:
     except Exception:
         log.exception("Failed to render primary Madonna campsites image")
 
+    now_ts = time.time()
+    need_group = force or _group_bytes is None or (now_ts - _group_render_ts) >= CACHE_SECONDS
+    need_uvas = force or _uvas_bytes is None or (now_ts - _uvas_render_ts) >= CACHE_SECONDS
+
     try:
-        group_bytes = madonna_group_sites.render_group_sites_cached(force=force)
-        with open(GROUP_OUTPUT, "wb") as f:
-            f.write(group_bytes)
-        images["group"] = Image.open(io.BytesIO(group_bytes)).convert("RGB")
+        if need_group:
+            _group_bytes = madonna_group_sites.render_group_sites_cached(force=True)
+            _group_render_ts = now_ts
+        if _group_bytes:
+            with open(GROUP_OUTPUT, "wb") as f:
+                f.write(_group_bytes)
+            images["group"] = Image.open(io.BytesIO(_group_bytes)).convert("RGB")
     except Exception:
         log.exception("Failed to render Madonna group sites image")
 
     try:
-        uvas_bytes = uvas_canyon_reservations.render_uvas_cached(force=force)
-        with open(UVAS_OUTPUT, "wb") as f:
-            f.write(uvas_bytes)
-        images["uvas"] = Image.open(io.BytesIO(uvas_bytes)).convert("RGB")
+        if need_uvas:
+            _uvas_bytes = uvas_canyon_reservations.render_uvas_cached(force=True)
+            _uvas_render_ts = now_ts
+        if _uvas_bytes:
+            with open(UVAS_OUTPUT, "wb") as f:
+                f.write(_uvas_bytes)
+            images["uvas"] = Image.open(io.BytesIO(_uvas_bytes)).convert("RGB")
     except Exception:
         log.exception("Failed to render Uvas Canyon reservations image")
 
