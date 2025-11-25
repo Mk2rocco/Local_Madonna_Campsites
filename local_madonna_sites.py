@@ -652,7 +652,11 @@ def _apply_inky_border(inky_display):
 
 def run_inky_display(loop: bool = True):
     if not _INKY_AVAILABLE or auto_detect_inky is None:
-        extra = "Install it with 'pip install inky' inside your Pi virtualenv."
+        extra = (
+            "Install it with 'pip install "
+            '"inky[rpi]"'" inside your Pi virtualenv, then 'sudo apt install -y \n"
+            "python3-rpi.gpio python3-spidev' on Raspberry Pi OS."
+        )
         if _INKY_IMPORT_ERROR:
             log.error(
                 "Inky display support requires the 'inky' library on the Raspberry Pi (import error: %s). %s",
@@ -660,7 +664,10 @@ def run_inky_display(loop: bool = True):
                 extra,
             )
         else:
-            log.error("Inky display support requires the 'inky' library on the Raspberry Pi. %s", extra)
+            log.error(
+                "Inky display support requires the 'inky' library on the Raspberry Pi (import error: unknown). %s",
+                extra,
+            )
         return
     try:
         verbose = bool(int(os.getenv("INKY_VERBOSE", "0")))

@@ -18,6 +18,25 @@ cd Local_Madonna_Campsites
 If you downloaded a ZIP instead of cloning, unzip it and `cd` into the
 extracted `Local_Madonna_Campsites` folder before continuing.
 
+## Update the code on your Pi over SSH
+
+Whenever you want the latest changes from GitHub, SSH into the Pi and run:
+
+```bash
+ssh pi@<YOUR_PI_HOSTNAME_OR_IP>
+cd ~/Local_Madonna_Campsites
+source ~/.venv/campsites/bin/activate
+git pull
+# Optional: refresh Python packages if requirements changed
+pip install -U requests pillow beautifulsoup4 "inky[rpi]" flask
+# Restart the service if you use systemd so it picks up new code
+sudo systemctl restart campsites.service
+```
+
+If you do not use `systemd`, simply rerun the command for your chosen
+`RUN_MODE` after pulling (for example: `RUN_MODE=inky python
+local_madonna_sites.py`).
+
 ## Requirements
 
 * Raspberry Pi Zero W (or newer) running Raspberry Pi OS Bookworm/Bullseye
@@ -45,8 +64,31 @@ pip install flask
 ```
 
 If you see `Inky display support requires the 'inky' library` when running
-`RUN_MODE=inky`, re-run `pip install inky` inside the same virtual environment
-to ensure the hardware driver is present.
+`RUN_MODE=inky`, ensure you are inside the same virtual environment and run:
+
+```bash
+pip install --no-cache-dir "inky[rpi]"
+sudo apt install -y python3-rpi.gpio python3-spidev
+```
+
+The apt packages provide the Raspberry Pi GPIO/SPI drivers that the Inky
+library expects at import time.
+
+### Enable SPI for the Inky HAT
+
+Some Raspberry Pi models (notably Pi 5) need an explicit SPI overlay for the
+Inky Impression HAT. If you see Inky errors even after installing dependencies,
+update `/boot/firmware/config.txt` on the Pi:
+
+1. Open the config file: `sudo nano /boot/firmware/config.txt`
+2. Scroll to the SPI section and ensure it contains both lines:
+   ```
+   dtparam=spi=on
+   dtoverlay=spi0-0cs
+   ```
+3. Save, exit, and reboot the Pi.
+
+This ensures the SPI bus is enabled with chip-select 0 for the display.
 
 ## Environment variables
 
