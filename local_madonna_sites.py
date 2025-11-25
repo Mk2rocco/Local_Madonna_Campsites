@@ -790,8 +790,19 @@ def run_inky_display(loop: bool = True):
     def _show_selection():
         img = cached_images.get(selected_key)
         if img is None:
-            log.warning("No cached image for key %s; available keys: %s", selected_key, list(cached_images))
-            return
+            first_available = next(iter(cached_images.items()), (None, None))
+            if first_available[1] is None:
+                log.error("No cached images available to display")
+                return
+            fallback_key, img = first_available
+            log.warning(
+                "No cached image for key %s; falling back to %s (available keys: %s)",
+                selected_key,
+                fallback_key,
+                list(cached_images),
+            )
+            # Keep the user's selection sticky for the next refresh, but show something
+            # immediately so the loop does not fail silently.
         prepared = prepare_inky_image(img, inky)
         inky.set_image(prepared, saturation=INKY_SATURATION)
         inky.show()
