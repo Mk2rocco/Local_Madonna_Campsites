@@ -21,7 +21,7 @@ Quick start (server):
 One-shot render:
   RUN_MODE=once OUTPUT=render_numbers.png TZ_NAME=America/Los_Angeles python app_numbers.py
 
-Inky Impression loop (updates every 15 minutes by default):
+Inky Impression loop (updates every 3 hours by default):
   RUN_MODE=inky TZ_NAME=America/Los_Angeles python app_numbers.py
 """
 
@@ -113,7 +113,7 @@ DITHER     = int(os.getenv("DITHER", "0"))
 GROUP_OUTPUT = os.getenv("OUTPUT_GROUP", os.path.join(os.getcwd(), "render_groups.png"))
 UVAS_OUTPUT = os.getenv("OUTPUT_UVAS", os.path.join(os.getcwd(), "render_uvas.png"))
 
-INKY_REFRESH_SECONDS = int(os.getenv("INKY_REFRESH_SECONDS", "900"))
+INKY_REFRESH_SECONDS = int(os.getenv("INKY_REFRESH_SECONDS", "10800"))
 INKY_SATURATION = float(os.getenv("INKY_SATURATION", "0.7"))
 INKY_ROTATE = int(os.getenv("INKY_ROTATE", "0"))  # degrees clockwise
 INKY_BORDER = os.getenv("INKY_BORDER", "white").lower()
