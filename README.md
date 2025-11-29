@@ -107,7 +107,7 @@ Pi build:
 | `RUN_MODE` | `server`, `once`, `inky`, or `inky_once` | `server` |
 | `TZ_NAME` | Local timezone for timestamps | `America/Los_Angeles` |
 | `RES_W`/`RES_H` | Override canvas width/height (auto-set in Inky modes) | `800` / `480` |
-| `INKY_REFRESH_SECONDS` | Loop delay between hardware updates | `900` |
+| `INKY_REFRESH_SECONDS` | Loop delay between hardware updates | `10800` |
 | `INKY_SATURATION` | Passed to `inky.set_image(..., saturation=…)` | `0.7` |
 | `INKY_ROTATE` | Rotate 0 or 180 degrees before sending to the panel | `0` |
 | `INKY_BORDER` | Border colour (`white`, `black`, etc.) or `none` | `white` |
@@ -140,7 +140,7 @@ PORT=8080 TZ_NAME=America/Los_Angeles python local_madonna_sites.py
 RUN_MODE=inky TZ_NAME=America/Los_Angeles python local_madonna_sites.py
 ```
 
-The loop refreshes every `INKY_REFRESH_SECONDS` seconds.  Use `RUN_MODE=inky_once`
+The loop refreshes every `INKY_REFRESH_SECONDS` seconds (3 hours by default).  Use `RUN_MODE=inky_once`
 to perform a single hardware refresh (useful for testing or cron jobs).
 
 ## Raspberry Pi boot service
