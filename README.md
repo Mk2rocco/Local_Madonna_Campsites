@@ -29,13 +29,9 @@ ssh pi@<YOUR_PI_HOSTNAME_OR_IP> "cd ~/Local_Madonna_Campsites && git pull"
 Whenever you want the latest changes from GitHub, SSH into the Pi and run:
 
 ```bash
-ssh pi@<YOUR_PI_HOSTNAME_OR_IP>
 cd ~/Local_Madonna_Campsites
 source ~/.venv/campsites/bin/activate
 git pull
-# Optional: refresh Python packages if requirements changed
-pip install -U requests pillow beautifulsoup4 "inky[rpi]" flask
-# Restart the service if you use systemd so it picks up new code
 sudo systemctl restart campsites.service
 ```
 
