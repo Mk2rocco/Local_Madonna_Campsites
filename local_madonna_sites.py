@@ -823,15 +823,23 @@ def run_inky_display(loop: bool = True):
         except Exception:
             log.debug("User LED pulse failed", exc_info=True)
 
-    def _flash_user_led():
+    def _start_flash_user_led():
         if user_led is None:
-            return
+            return None
         on_time = max(0.01, USER_LED_FLASH_TIME)
-        pulses = max(1, USER_LED_FLASH_PULSES)
         try:
-            user_led.blink(on_time=on_time, off_time=on_time, n=pulses, background=True)
+            user_led.blink(on_time=on_time, off_time=on_time, background=True)
         except Exception:
             log.debug("User LED flash failed", exc_info=True)
+            return None
+
+        def _stop():
+            try:
+                user_led.off()
+            except Exception:
+                log.debug("User LED stop failed", exc_info=True)
+
+        return _stop
 
     def _show_selection():
         nonlocal selected_key, last_shown_key
@@ -853,10 +861,17 @@ def run_inky_display(loop: bool = True):
 
             prepared = prepare_inky_image(img, inky)
 
+        stop_flash = None
+        should_flash = last_shown_key is not None and selected_key != last_shown_key
+        if should_flash:
+            stop_flash = _start_flash_user_led()
+
         inky.set_image(prepared, saturation=INKY_SATURATION)
         inky.show()
-        if last_shown_key is not None and selected_key != last_shown_key:
-            _flash_user_led()
+
+        if stop_flash is not None:
+            stop_flash()
+
         last_shown_key = selected_key
         log.info("Inky display updated (%s) at %s", selected_key, datetime.now(LOCAL_TZ).isoformat())
 
