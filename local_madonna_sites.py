@@ -800,6 +800,7 @@ def run_inky_display(loop: bool = True):
     redraw_needed = threading.Event()
     redraw_needed.set()  # draw initial image
     cache_lock = threading.Lock()
+    display_lock = threading.Lock()
 
     def _setup_user_led():
         if not _USER_LED_AVAILABLE or LED is None:
@@ -839,35 +840,47 @@ def run_inky_display(loop: bool = True):
 
     def _show_selection():
         nonlocal selected_key, last_shown_key
-        with cache_lock:
-            if not cached_images:
-                log.error("No cached_images available when trying to show selection %s", selected_key)
-                return
 
-            img = cached_images.get(selected_key)
-            if img is None:
-                # Fallback so we always show *something*
-                fallback_key, img = next(iter(cached_images.items()))
-                log.warning(
-                    "No cached image for key %s; falling back to %s (available keys: %s)",
-                    selected_key,
-                    fallback_key,
-                    list(cached_images),
+        # Only one refresh at a time
+        with display_lock:
+            # Take a snapshot of the key for this frame
+            key_for_frame = selected_key
+
+            with cache_lock:
+                if not cached_images:
+                    log.error("No cached_images available when trying to show selection %s", key_for_frame)
+                    return
+
+                img = cached_images.get(key_for_frame)
+                if img is None:
+                    # Fallback so we always show *something*
+                    fallback_key, img = next(iter(cached_images.items()))
+                    log.warning(
+                        "No cached image for key %s; falling back to %s (available keys: %s)",
+                        key_for_frame,
+                        fallback_key,
+                        list(cached_images),
+                    )
+                    key_for_frame = fallback_key
+
+                prepared = prepare_inky_image(img, inky)
+
+            stop_flash = _start_flash_user_led()
+            try:
+                inky.set_image(prepared, saturation=INKY_SATURATION)
+                inky.show()
+                log.info(
+                    "Inky display updated (%s) at %s",
+                    key_for_frame,
+                    datetime.now(LOCAL_TZ).isoformat(),
                 )
+            finally:
+                if stop_flash is not None:
+                    # Keep flashing briefly even if the refresh completes quickly
+                    threading.Timer(USER_LED_PULSE_SECONDS, stop_flash).start()
 
-            prepared = prepare_inky_image(img, inky)
-
-        stop_flash = _start_flash_user_led()
-        try:
-            inky.set_image(prepared, saturation=INKY_SATURATION)
-            inky.show()
-            log.info("Inky display updated (%s) at %s", selected_key, datetime.now(LOCAL_TZ).isoformat())
-        finally:
-            if stop_flash is not None:
-                # Keep flashing briefly even if the refresh completes quickly
-                threading.Timer(USER_LED_PULSE_SECONDS, stop_flash).start()
-
-        last_shown_key = selected_key
+            # Record what we *actually* showed
+            last_shown_key = key_for_frame
 
     def _bind_button(name: str, key: str):
         if not _INKY_BUTTONS_AVAILABLE or Button is None:
@@ -935,18 +948,20 @@ def run_inky_display(loop: bool = True):
     # Main loop: ONLY handles redraw events
     while True:
         try:
-            if redraw_needed.is_set():
-                _show_selection()
-                redraw_needed.clear()
+            # Wait until someone asks for a redraw.
+            redraw_needed.wait()
+            redraw_needed.clear()
+
+            _show_selection()
+
+            if not loop:
+                break
+
         except KeyboardInterrupt:  # pragma: no cover - manual stop
             log.info("Inky loop interrupted by user")
             break
         except Exception as exc:  # pragma: no cover - hardware/network issues
             log.exception("Failed to refresh Inky display: %s", exc)
-
-        if not loop:
-            break
-        time.sleep(0.1)
 
 
 # ---------- HTTP server ----------
