@@ -865,12 +865,12 @@ def run_inky_display(loop: bool = True):
         try:
             inky.set_image(prepared, saturation=INKY_SATURATION)
             inky.show()
+            log.info("Inky display updated (%s) at %s", selected_key, datetime.now(LOCAL_TZ).isoformat())
         finally:
             if stop_flash is not None:
                 stop_flash()
 
         last_shown_key = selected_key
-        log.info("Inky display updated (%s) at %s", selected_key, datetime.now(LOCAL_TZ).isoformat())
 
     def _bind_button(name: str, key: str):
         if not _INKY_BUTTONS_AVAILABLE or Button is None:
