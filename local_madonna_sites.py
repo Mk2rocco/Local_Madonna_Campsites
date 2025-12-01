@@ -814,19 +814,15 @@ def run_inky_display(loop: bool = True):
 
     user_led = _setup_user_led()
 
-    def _pulse_user_led(seconds: float = USER_LED_PULSE_SECONDS):
-        if user_led is None:
-            return
-        try:
-            user_led.on()
-            threading.Timer(seconds, user_led.off).start()
-        except Exception:
-            log.debug("User LED pulse failed", exc_info=True)
-
     def _start_flash_user_led():
         if user_led is None:
             return None
-        on_time = max(0.01, USER_LED_FLASH_TIME)
+        try:
+            user_led.off()
+        except Exception:
+            log.debug("User LED off before flash failed", exc_info=True)
+
+        on_time = max(0.05, USER_LED_FLASH_TIME)
         try:
             user_led.blink(on_time=on_time, off_time=on_time, background=True)
         except Exception:
@@ -890,9 +886,13 @@ def run_inky_display(loop: bool = True):
 
             def _handler():
                 nonlocal selected_key
+                if selected_key == key:
+                    # Already showing this image; no need to redraw or flash
+                    log.info("Button %s pressed but %s is already selected; no redraw", name, key)
+                    return
+
                 selected_key = key
                 log.info("Button %s pressed; switching to %s", name, key)
-                _pulse_user_led()
                 redraw_needed.set()
 
             btn.when_pressed = _handler
