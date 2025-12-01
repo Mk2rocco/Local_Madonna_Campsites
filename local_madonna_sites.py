@@ -868,7 +868,8 @@ def run_inky_display(loop: bool = True):
             log.info("Inky display updated (%s) at %s", selected_key, datetime.now(LOCAL_TZ).isoformat())
         finally:
             if stop_flash is not None:
-                stop_flash()
+                # Keep flashing briefly even if the refresh completes quickly
+                threading.Timer(USER_LED_PULSE_SECONDS, stop_flash).start()
 
         last_shown_key = selected_key
 
