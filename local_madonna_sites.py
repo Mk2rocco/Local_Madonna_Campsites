@@ -861,16 +861,13 @@ def run_inky_display(loop: bool = True):
 
             prepared = prepare_inky_image(img, inky)
 
-        stop_flash = None
-        should_flash = last_shown_key is not None and selected_key != last_shown_key
-        if should_flash:
-            stop_flash = _start_flash_user_led()
-
-        inky.set_image(prepared, saturation=INKY_SATURATION)
-        inky.show()
-
-        if stop_flash is not None:
-            stop_flash()
+        stop_flash = _start_flash_user_led()
+        try:
+            inky.set_image(prepared, saturation=INKY_SATURATION)
+            inky.show()
+        finally:
+            if stop_flash is not None:
+                stop_flash()
 
         last_shown_key = selected_key
         log.info("Inky display updated (%s) at %s", selected_key, datetime.now(LOCAL_TZ).isoformat())
