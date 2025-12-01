@@ -49,11 +49,14 @@ except Exception as exc:  # pragma: no cover - hardware optional
     _INKY_IMPORT_ERROR = str(exc)
 
 try:
-    from gpiozero import Button
+    from gpiozero import Button, LED
     _INKY_BUTTONS_AVAILABLE = True
+    _USER_LED_AVAILABLE = True
 except Exception:
     Button = None
+    LED = None
     _INKY_BUTTONS_AVAILABLE = False
+    _USER_LED_AVAILABLE = False
 
 # Flask is optional—only needed for server mode.
 _flask_spec = importlib.util.find_spec("flask")
@@ -125,6 +128,10 @@ INKY_BUTTON_PINS = {
 INKY_BUTTON_HOLD_TIME = float(os.getenv("INKY_BUTTON_HOLD", "0.05"))
 INKY_BUTTON_BOUNCE = float(os.getenv("INKY_BUTTON_BOUNCE", "0.05"))
 INKY_BUTTON_PULL_UP = bool(int(os.getenv("INKY_BUTTON_PULL_UP", "0")))
+USER_LED_PIN = int(os.getenv("USER_LED_PIN", "13"))
+USER_LED_PULSE_SECONDS = float(os.getenv("USER_LED_PULSE_SECONDS", "0.5"))
+USER_LED_FLASH_TIME = float(os.getenv("USER_LED_FLASH_TIME", "0.15"))
+USER_LED_FLASH_PULSES = int(os.getenv("USER_LED_FLASH_PULSES", "2"))
 
 # Use the display refresh interval as the cadence for cross-renderer updates so
 # the button toggles only swap between cached PNGs. Each button maps to a
@@ -789,12 +796,53 @@ def run_inky_display(loop: bool = True):
     # Shared state between threads
     cached_images: Dict[str, Image.Image] = render_all_pngs(force=True, refresh_window=cross_refresh)
     selected_key = INKY_BUTTON_IMAGE_KEYS.get("A", "madonna")
+    last_shown_key: Optional[str] = None
     redraw_needed = threading.Event()
     redraw_needed.set()  # draw initial image
     cache_lock = threading.Lock()
 
+    def _setup_user_led():
+        if not _USER_LED_AVAILABLE or LED is None:
+            return None
+        try:
+            led = LED(USER_LED_PIN)
+            log.info("User LED initialized on pin %s", USER_LED_PIN)
+            return led
+        except Exception as exc:  # pragma: no cover - hardware specific
+            log.warning("Unable to initialize user LED on pin %s: %s", USER_LED_PIN, exc)
+            return None
+
+    user_led = _setup_user_led()
+
+    def _pulse_user_led(seconds: float = USER_LED_PULSE_SECONDS):
+        if user_led is None:
+            return
+        try:
+            user_led.on()
+            threading.Timer(seconds, user_led.off).start()
+        except Exception:
+            log.debug("User LED pulse failed", exc_info=True)
+
+    def _start_flash_user_led():
+        if user_led is None:
+            return None
+        on_time = max(0.01, USER_LED_FLASH_TIME)
+        try:
+            user_led.blink(on_time=on_time, off_time=on_time, background=True)
+        except Exception:
+            log.debug("User LED flash failed", exc_info=True)
+            return None
+
+        def _stop():
+            try:
+                user_led.off()
+            except Exception:
+                log.debug("User LED stop failed", exc_info=True)
+
+        return _stop
+
     def _show_selection():
-        nonlocal selected_key
+        nonlocal selected_key, last_shown_key
         with cache_lock:
             if not cached_images:
                 log.error("No cached_images available when trying to show selection %s", selected_key)
@@ -813,8 +861,18 @@ def run_inky_display(loop: bool = True):
 
             prepared = prepare_inky_image(img, inky)
 
+        stop_flash = None
+        should_flash = last_shown_key is not None and selected_key != last_shown_key
+        if should_flash:
+            stop_flash = _start_flash_user_led()
+
         inky.set_image(prepared, saturation=INKY_SATURATION)
         inky.show()
+
+        if stop_flash is not None:
+            stop_flash()
+
+        last_shown_key = selected_key
         log.info("Inky display updated (%s) at %s", selected_key, datetime.now(LOCAL_TZ).isoformat())
 
     def _bind_button(name: str, key: str):
@@ -836,6 +894,7 @@ def run_inky_display(loop: bool = True):
                 nonlocal selected_key
                 selected_key = key
                 log.info("Button %s pressed; switching to %s", name, key)
+                _pulse_user_led()
                 redraw_needed.set()
 
             btn.when_pressed = _handler
