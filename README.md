@@ -30,9 +30,19 @@ Whenever you want the latest changes from GitHub, SSH into the Pi and run:
 
 ```bash
 cd ~/Local_Madonna_Campsites
+
+# stop the service so nothing is touching the code while we update
+sudo systemctl stop campsites.service
+
+# optional but nice if you care about the venv:
 source ~/.venv/campsites/bin/activate
+
+# update code
 git pull
-sudo systemctl restart campsites.service
+
+# start the service again
+sudo systemctl start campsites.service
+
 ```
 
 If you do not use `systemd`, simply rerun the command for your chosen
