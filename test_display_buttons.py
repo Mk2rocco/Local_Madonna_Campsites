@@ -26,6 +26,7 @@ class DisplayButtonTests(unittest.TestCase):
                             _USER_LED_AVAILABLE=False, INKY_REFRESH_SECONDS=0,
                             Button=button, auto_detect_inky=Mock(return_value=inky),
                             ButtonUpdateChord=Mock(return_value=chord),
+                            AdvisoryProgram=Mock(return_value=Mock(pages=Mock(return_value=[Image.new('RGB', (800, 480))]))),
                             render_all_pngs=Mock(return_value={'madonna': Image.new('RGB', (800, 480))})):
             display.run_inky_display(loop=False)
         self.assertEqual(set(buttons), {5, 6, 16, 24})
@@ -35,6 +36,64 @@ class DisplayButtonTests(unittest.TestCase):
         for button in buttons.values():
             button.close.assert_called_once()
 
+    def test_d_cycles_advisories_and_a_b_preserve_views(self):
+        buttons = {}
+        def button(pin, **kwargs):
+            buttons[pin] = Mock()
+            return buttons[pin]
+        inky = Mock(width=800, height=480)
+        def tap(pin):
+            buttons[pin].when_pressed()
+            if pin in (5, 24):
+                buttons[pin].when_released()
+        actions = [lambda: tap(24), lambda: tap(24), lambda: tap(24),
+                   lambda: tap(6), lambda: tap(5)]
+        def during_show():
+            if actions:
+                actions.pop(0)()
+            else:
+                raise KeyboardInterrupt()
+        inky.show.side_effect = during_show
+        image = lambda shade: Image.new('RGB', (800, 480), (shade, shade, shade))
+        program = Mock(pages=Mock(return_value=[image(50), image(100)]))
+        with patch.multiple(display, _INKY_AVAILABLE=True, _INKY_BUTTONS_AVAILABLE=True,
+                            _USER_LED_AVAILABLE=False, INKY_REFRESH_SECONDS=0,
+                            Button=button, auto_detect_inky=Mock(return_value=inky),
+                            AdvisoryProgram=Mock(return_value=program),
+                            render_all_pngs=Mock(return_value={'madonna': image(0), 'group': image(150)})):
+            with patch('local_madonna_sites.threading.Thread'):
+                display.run_inky_display(loop=True)
+        shown = [c.args[0].getpixel((0, 0))[0] for c in inky.set_image.call_args_list]
+        self.assertEqual(shown, [0, 50, 100, 50, 150, 0])
+        program.pages.assert_called_once_with(width=800, height=480)
+
+    def test_advisory_refresh_thread_runs_every_two_hours_independently(self):
+        inky = Mock(width=800, height=480)
+        image = Image.new('RGB', (800, 480))
+        program = Mock(pages=Mock(return_value=[image]))
+        created = []
+        def thread(**kwargs):
+            created.append(kwargs['target'])
+            return Mock()
+        def during_show():
+            # One iteration of the advisory worker, then stop its test execution.
+            with patch('local_madonna_sites.time.sleep', side_effect=[None, KeyboardInterrupt()]) as sleep:
+                with self.assertRaises(KeyboardInterrupt):
+                    created[0]()
+            self.assertEqual(sleep.call_args_list, [call(7200), call(7200)])
+            raise KeyboardInterrupt()
+        inky.show.side_effect = during_show
+        with patch.multiple(display, _INKY_AVAILABLE=True, _INKY_BUTTONS_AVAILABLE=False,
+                            _USER_LED_AVAILABLE=False, INKY_REFRESH_SECONDS=0,
+                            auto_detect_inky=Mock(return_value=inky),
+                            AdvisoryProgram=Mock(return_value=program),
+                            render_all_pngs=Mock(return_value={'madonna': image})):
+            with patch('local_madonna_sites.threading.Thread', side_effect=thread):
+                display.run_inky_display(loop=True)
+        self.assertEqual(program.pages.call_args_list,
+                         [call(width=800, height=480), call(force=True, width=800, height=480)])
+
 
 if __name__ == '__main__':
     unittest.main()
+

@@ -7,16 +7,32 @@ import threading
 log = logging.getLogger(__name__)
 
 
-def request_update():
-    """Queue the job outside the display process so it can restart that process."""
-    command = ['/usr/bin/systemctl', 'start', '--no-block', 'campsites-update.service']
+_request_lock = threading.Lock()
+
+
+def request_update(on_start=None, on_finish=None):
+    """Wait in the button's worker thread while the independent update job runs."""
+    if not _request_lock.acquire(blocking=False):
+        log.info('An update request is already running')
+        return
+    command = ['/usr/bin/systemctl', 'start', 'campsites-update.service']
     if os.geteuid() != 0:
         command = ['sudo', '-n', *command]
     try:
-        subprocess.run(command, check=True, timeout=10)
-        log.info('GitHub update requested; see journalctl -u campsites-update.service')
+        if on_start is not None:
+            on_start()
+        # The service owns the update; stopping the display may kill this client,
+        # but does not kill the separate updater service. No main-loop blocking.
+        subprocess.run(command, check=True, timeout=660)
+        log.info('GitHub update check finished; see journalctl -u campsites-update.service')
     except (OSError, subprocess.SubprocessError):
-        log.exception('Cannot request update; run sudo python3 scripts/install_button_update.py first')
+        log.exception('Update request failed; check updater logs and rerun the button installer if needed')
+    finally:
+        try:
+            if on_finish is not None:
+                on_finish()
+        finally:
+            _request_lock.release()
 
 
 class ButtonUpdateChord:
@@ -28,7 +44,7 @@ class ButtonUpdateChord:
         self.callback = callback
         self.timer_factory = timer_factory
         self.pressed = set()
-        self.suppress_a = False
+        self.suppress_selection = False
         self.fired = False
         self.timer = None
         self.generation = 0
@@ -37,8 +53,8 @@ class ButtonUpdateChord:
     def press(self, name):
         with self.lock:
             self.pressed.add(name)
-            if self.pressed == {'A', 'D'} and not self.suppress_a:
-                self.suppress_a = True
+            if self.pressed == {'A', 'D'} and not self.suppress_selection:
+                self.suppress_selection = True
                 self.generation += 1
                 generation = self.generation
                 timer = self.timer_factory(self.hold_seconds, lambda: self._fire(generation))
@@ -47,18 +63,18 @@ class ButtonUpdateChord:
                 timer.start()
 
     def release(self, name):
-        """Return True when A was used alone and should select its normal view."""
+        """Return True for a single A or D press that should select its view."""
         with self.lock:
-            select_a = name == 'A' and name in self.pressed and not self.suppress_a
+            select_view = name in {'A', 'D'} and name in self.pressed and not self.suppress_selection
             self.pressed.discard(name)
             if self.timer is not None:
                 self.timer.cancel()
                 self.timer = None
                 self.generation += 1
             if not self.pressed:
-                self.suppress_a = False
+                self.suppress_selection = False
                 self.fired = False
-            return select_a
+            return select_view
 
     def _fire(self, generation):
         with self.lock:
@@ -74,3 +90,5 @@ class ButtonUpdateChord:
                 self.timer = None
                 self.generation += 1
             self.pressed.clear()
+
+
