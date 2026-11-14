@@ -7,16 +7,32 @@ import threading
 log = logging.getLogger(__name__)
 
 
-def request_update():
-    """Queue the job outside the display process so it can restart that process."""
-    command = ['/usr/bin/systemctl', 'start', '--no-block', 'campsites-update.service']
+_request_lock = threading.Lock()
+
+
+def request_update(on_start=None, on_finish=None):
+    """Wait in the button's worker thread while the independent update job runs."""
+    if not _request_lock.acquire(blocking=False):
+        log.info('An update request is already running')
+        return
+    command = ['/usr/bin/systemctl', 'start', 'campsites-update.service']
     if os.geteuid() != 0:
         command = ['sudo', '-n', *command]
     try:
-        subprocess.run(command, check=True, timeout=10)
-        log.info('GitHub update requested; see journalctl -u campsites-update.service')
+        if on_start is not None:
+            on_start()
+        # The service owns the update; stopping the display may kill this client,
+        # but does not kill the separate updater service. No main-loop blocking.
+        subprocess.run(command, check=True, timeout=660)
+        log.info('GitHub update check finished; see journalctl -u campsites-update.service')
     except (OSError, subprocess.SubprocessError):
-        log.exception('Cannot request update; run sudo python3 scripts/install_button_update.py first')
+        log.exception('Update request failed; check updater logs and rerun the button installer if needed')
+    finally:
+        try:
+            if on_finish is not None:
+                on_finish()
+        finally:
+            _request_lock.release()
 
 
 class ButtonUpdateChord:
@@ -74,3 +90,4 @@ class ButtonUpdateChord:
                 self.timer = None
                 self.generation += 1
             self.pressed.clear()
+

@@ -46,8 +46,8 @@ def main():
     os.chown(script, 0, 0)
     unit = Path('/etc/systemd/system/campsites-update.service')
     unit.write_text(build_unit(repo, username, script))
-    # Grant only this exact nonblocking start command, not arbitrary root access.
-    rule = f'{username} ALL=(root) NOPASSWD: /usr/bin/systemctl start --no-block campsites-update.service\n'
+    # Grant only this exact start command, not arbitrary root access.
+    rule = f'{username} ALL=(root) NOPASSWD: /usr/bin/systemctl start campsites-update.service\n'
     with tempfile.NamedTemporaryFile(mode='w', dir='/etc/sudoers.d', prefix='.campsites-',
                                      delete=False) as temporary:
         temporary.write(rule)
@@ -68,3 +68,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

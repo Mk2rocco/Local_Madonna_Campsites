@@ -286,3 +286,30 @@ Run the regression suite with the normal project dependencies installed:
 ```bash
 python3 -m unittest discover -v
 ```
+
+
+### Status light during button updates
+
+After the ten-second A+D hold, the existing status LED (`USER_LED_PIN`, default
+BCM GPIO 13) flashes while the update check runs. It turns off when a check
+finishes without restarting the display, including when no update is available
+or the request fails. Flashing can pause while the display service stops and
+restarts to apply new code; the restarted display retains its normal render
+flashes. The light indicates activity, not successful installation. Check the
+updater and display logs for the result.
+
+Update feedback takes priority over normal display-refresh flashing, so a
+pending display timer cannot switch it off. A missing or faulty optional LED
+does not prevent the update check. The update request waits in the button's
+worker thread, leaving normal display handling responsive, while the separate
+systemd update job remains independent of the display process.
+
+For this version, re-run the installer after pulling, then restart the display:
+
+```bash
+sudo python3 scripts/install_button_update.py
+sudo systemctl restart campsites.service
+```
+
+This refreshes the narrowly scoped sudo rule used to wait for the update job
+to finish and turn the light off. No nightly schedule is installed.
