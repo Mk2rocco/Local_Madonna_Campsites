@@ -36,6 +36,7 @@ from reservation_grid import parse_grid
 # These renderers are also available as stand-alone modules, but we keep
 # light-weight wrappers here so a single process can generate and cache all
 # three PNGs without bouncing between multiple entry points.
+from button_update import ButtonUpdateChord
 import madonna_group_sites
 import uvas_canyon_reservations
 
@@ -124,7 +125,9 @@ INKY_BUTTON_PINS = {
     "A": int(os.getenv("INKY_BUTTON_A_PIN", "5")),
     "B": int(os.getenv("INKY_BUTTON_B_PIN", "6")),
     "C": int(os.getenv("INKY_BUTTON_C_PIN", "16")),
+    "D": int(os.getenv("INKY_BUTTON_D_PIN", "24")),
 }
+INKY_UPDATE_HOLD_SECONDS = float(os.getenv("INKY_UPDATE_HOLD_SECONDS", "3"))
 INKY_BUTTON_HOLD_TIME = float(os.getenv("INKY_BUTTON_HOLD", "0.05"))
 INKY_BUTTON_BOUNCE = float(os.getenv("INKY_BUTTON_BOUNCE", "0.05"))
 INKY_BUTTON_PULL_UP = bool(int(os.getenv("INKY_BUTTON_PULL_UP", "0")))
@@ -807,7 +810,9 @@ def run_inky_display(loop: bool = True):
             # Record what we *actually* showed
             last_shown_key = key_for_frame
 
-    def _bind_button(name: str, key: str):
+    update_chord = ButtonUpdateChord(hold_seconds=INKY_UPDATE_HOLD_SECONDS)
+
+    def _bind_button(name: str, key: Optional[str]):
         if not _INKY_BUTTONS_AVAILABLE or Button is None:
             log.debug("GPIO buttons unavailable; skipping binding for %s", name)
             return None
@@ -824,6 +829,8 @@ def run_inky_display(loop: bool = True):
 
             def _handler():
                 nonlocal selected_key
+                if key is None:
+                    return
                 if selected_key == key:
                     # Already showing this image; no need to redraw or flash
                     log.info("Button %s pressed but %s is already selected; no redraw", name, key)
@@ -833,7 +840,16 @@ def run_inky_display(loop: bool = True):
                 log.info("Button %s pressed; switching to %s", name, key)
                 redraw_needed.set()
 
-            btn.when_pressed = _handler
+            if name in {"A", "D"}:
+                btn.when_pressed = lambda: update_chord.press(name)
+
+                def _release():
+                    if update_chord.release(name):
+                        _handler()
+
+                btn.when_released = _release
+            else:
+                btn.when_pressed = _handler
             log.info("Inky button %s bound to pin %s", name, pin)
             return btn
         except Exception as exc:  # pragma: no cover - hardware specific
@@ -867,6 +883,9 @@ def run_inky_display(loop: bool = True):
 
     # Bind buttons
     buttons = {name: _bind_button(name, key) for name, key in INKY_BUTTON_IMAGE_KEYS.items()}
+    buttons["D"] = _bind_button("D", None)
+    if buttons.get("A") is None or buttons.get("D") is None:
+        log.warning("A+D GitHub update gesture unavailable; both buttons must bind")
     if not any(buttons.values()):
         log.warning("No Inky buttons were bound; check wiring or gpiozero configuration")
 
@@ -887,6 +906,11 @@ def run_inky_display(loop: bool = True):
             break
         except Exception as exc:  # pragma: no cover - hardware/network issues
             log.exception("Failed to refresh Inky display: %s", exc)
+
+    update_chord.close()
+    for button in buttons.values():
+        if button is not None:
+            button.close()
 
 
 # ---------- HTTP server ----------
@@ -960,4 +984,5 @@ if __name__ == "__main__":
         run_inky_display(loop=True)
     else:
         start_server()
+
 
