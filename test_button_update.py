@@ -30,9 +30,9 @@ class ChordTests(unittest.TestCase):
         self.assertEqual(self.timers, [])
         self.callback.assert_not_called()
 
-    def test_d_alone_does_nothing(self):
+    def test_d_alone_selects_advisory_view(self):
         self.chord.press('D')
-        self.assertFalse(self.chord.release('D'))
+        self.assertTrue(self.chord.release('D'))
         self.assertEqual(self.timers, [])
 
     def test_ten_second_chord_in_either_order(self):
@@ -88,11 +88,11 @@ class ChordTests(unittest.TestCase):
 
     @patch('button_update.os.geteuid', return_value=1000)
     @patch('button_update.subprocess.run')
-    def test_unprivileged_request_is_nonblocking_and_noninteractive(self, run, uid):
+    def test_unprivileged_request_is_noninteractive(self, run, uid):
         request_update()
         run.assert_called_once_with(['sudo', '-n', '/usr/bin/systemctl', 'start',
-                                     '--no-block', 'campsites-update.service'],
-                                    check=True, timeout=10)
+                                     'campsites-update.service'],
+                                    check=True, timeout=660)
 
     @patch('button_update.os.geteuid', return_value=0)
     @patch('button_update.subprocess.run')
@@ -108,3 +108,5 @@ class ChordTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+

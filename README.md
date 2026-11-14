@@ -249,8 +249,7 @@ the checkout's `origin/main` and installs new merged commits. A running display
 service is stopped during the update and started again afterward. No new
 commits means no restart. Release both buttons before requesting another check.
 A short simultaneous press does nothing. A alone selects the normal campsite
-view on release; B and C continue to select their views on press. D alone has
-no action. The gesture works while the display program is running in Inky mode.
+view on release; B and C continue to select their views on press. D alone opens the detailed NWS advisory view and advances its pages. The gesture works while the display program is running in Inky mode.
 
 Defaults are BCM GPIO 5 for A and GPIO 24 for D. Override with
 `INKY_BUTTON_A_PIN` and `INKY_BUTTON_D_PIN` if your wiring differs. Adjust the
@@ -285,4 +284,76 @@ Run the regression suite with the normal project dependencies installed:
 
 ```bash
 python3 -m unittest discover -v
+```
+
+
+### Status light during button updates
+
+After the ten-second A+D hold, the existing status LED (`USER_LED_PIN`, default
+BCM GPIO 13) flashes while the update check runs. It turns off when a check
+finishes without restarting the display, including when no update is available
+or the request fails. Flashing can pause while the display service stops and
+restarts to apply new code; the restarted display retains its normal render
+flashes. The light indicates activity, not successful installation. Check the
+updater and display logs for the result.
+
+Update feedback takes priority over normal display-refresh flashing, so a
+pending display timer cannot switch it off. A missing or faulty optional LED
+does not prevent the update check. The update request waits in the button's
+worker thread, leaving normal display handling responsive, while the separate
+systemd update job remains independent of the display process.
+
+For this version, re-run the installer after pulling, then restart the display:
+
+```bash
+sudo python3 scripts/install_button_update.py
+sudo systemctl restart campsites.service
+```
+
+This refreshes the narrowly scoped sudo rule used to wait for the update job
+to finish and turn the light off. No nightly schedule is installed.
+
+
+## Detailed NWS advisories — button 4 (D)
+
+Press and release **D** to open the fourth display program. It shows the full
+NWS headline, affected area, severity, timing, description, and instructions
+for the configured park location. Long advisories and multiple alerts continue
+onto additional pages; press D again to advance, cycling back after the last
+page. The footer shows the page number and the last successful check time.
+
+When NWS reports no active advisories, the view displays **No active NWS
+advisories**. Network/API failures are displayed as unavailable, rather than
+reported as no advisories. If a later refresh fails, the previous successful
+data remains visible with an explicit stale-data banner.
+
+The advisory program fetches on startup and every **two hours**, including when
+another view is selected. Its schedule is independent of the three existing
+views, whose renderers, footer advisories, and configured refresh timing are
+unchanged. The fourth view uses the existing `NWS_LAT`, `NWS_LON`,
+`NWS_USER_AGENT`, `DATA_TIMEOUT`, and `TZ_NAME` settings. Defaults cover the
+same Mt. Madonna point as the primary campsite view.
+
+A/B/C retain their current views. The ten-second A+D GitHub update gesture
+and update-status flashing remain available. Short D presses change pages;
+an A+D chord suppresses normal A/D view selection.
+
+You can also run the new advisory program separately to generate PNG pages:
+
+```bash
+python3 nws_advisories.py
+```
+
+It writes `render_advisories.png`, followed by `render_advisories_2.png`, etc.
+Override the output basename with `OUTPUT_ADVISORIES`. The standalone command
+renders once; the Inky display process provides the automatic two-hour schedule.
+
+After merging and pulling this update, run the button installer and restart
+the display (the installer also includes the pending status-light update):
+
+```bash
+cd ~/Local_Madonna_Campsites
+git pull --ff-only
+sudo python3 scripts/install_button_update.py
+sudo systemctl restart campsites.service
 ```

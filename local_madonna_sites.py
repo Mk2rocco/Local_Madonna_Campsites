@@ -36,7 +36,9 @@ from reservation_grid import parse_grid
 # These renderers are also available as stand-alone modules, but we keep
 # light-weight wrappers here so a single process can generate and cache all
 # three PNGs without bouncing between multiple entry points.
-from button_update import ButtonUpdateChord
+from button_update import ButtonUpdateChord, request_update
+from status_light import StatusLight
+from nws_advisories import AdvisoryProgram, REFRESH_SECONDS as ADVISORY_REFRESH_SECONDS
 import madonna_group_sites
 import uvas_canyon_reservations
 
@@ -143,6 +145,7 @@ INKY_BUTTON_IMAGE_KEYS = {
     "A": "madonna",          # Local_Madonna_Sites
     "B": "group",            # Madonna Group sites
     "C": "uvas",             # Uvas Canyon reservations
+    "D": "advisories",       # Detailed NWS advisories
 }
 INKY_CROSS_RENDER_SECONDS = int(os.getenv("INKY_CROSS_RENDER_SECONDS", str(INKY_REFRESH_SECONDS)))
 
@@ -723,6 +726,10 @@ def run_inky_display(loop: bool = True):
 
     # Shared state between threads
     cached_images: Dict[str, Image.Image] = render_all_pngs(force=True, refresh_window=cross_refresh)
+    advisory_program = AdvisoryProgram()
+    advisory_pages = advisory_program.pages(width=RES_W, height=RES_H)
+    advisory_index = 0
+    cached_images["advisories"] = advisory_pages[0].copy()
     selected_key = INKY_BUTTON_IMAGE_KEYS.get("A", "madonna")
     last_shown_key: Optional[str] = None
     redraw_needed = threading.Event()
@@ -743,28 +750,10 @@ def run_inky_display(loop: bool = True):
 
     user_led = _setup_user_led()
 
+    status_light = StatusLight(user_led, USER_LED_FLASH_TIME)
+
     def _start_flash_user_led():
-        if user_led is None:
-            return None
-        try:
-            user_led.off()
-        except Exception:
-            log.debug("User LED off before flash failed", exc_info=True)
-
-        on_time = max(0.05, USER_LED_FLASH_TIME)
-        try:
-            user_led.blink(on_time=on_time, off_time=on_time, background=True)
-        except Exception:
-            log.debug("User LED flash failed", exc_info=True)
-            return None
-
-        def _stop():
-            try:
-                user_led.off()
-            except Exception:
-                log.debug("User LED stop failed", exc_info=True)
-
-        return _stop
+        return status_light.flash_display()
 
     def _show_selection():
         nonlocal selected_key, last_shown_key
@@ -810,7 +799,12 @@ def run_inky_display(loop: bool = True):
             # Record what we *actually* showed
             last_shown_key = key_for_frame
 
-    update_chord = ButtonUpdateChord(hold_seconds=INKY_UPDATE_HOLD_SECONDS)
+    def _request_github_update():
+        request_update(on_start=status_light.begin_update, on_finish=status_light.end_update)
+
+    update_chord = ButtonUpdateChord(
+        hold_seconds=INKY_UPDATE_HOLD_SECONDS, callback=_request_github_update,
+    )
 
     def _bind_button(name: str, key: Optional[str]):
         if not _INKY_BUTTONS_AVAILABLE or Button is None:
@@ -828,7 +822,15 @@ def run_inky_display(loop: bool = True):
             )
 
             def _handler():
-                nonlocal selected_key
+                nonlocal selected_key, advisory_index
+                if key == "advisories":
+                    with cache_lock:
+                        advisory_index = (advisory_index + 1) % len(advisory_pages) if selected_key == key else 0
+                        cached_images[key] = advisory_pages[advisory_index].copy()
+                    selected_key = key
+                    log.info("NWS advisory page %s/%s selected", advisory_index + 1, len(advisory_pages))
+                    redraw_needed.set()
+                    return
                 if key is None:
                     return
                 if selected_key == key:
@@ -876,6 +878,27 @@ def run_inky_display(loop: bool = True):
             except Exception as exc:
                 log.exception("Background render thread error: %s", exc)
 
+    # Detailed advisories have their own two-hour cadence. Existing views keep
+    # their configured timing and continue to use their existing renderers.
+    def _advisory_thread():
+        nonlocal advisory_pages, advisory_index
+        while True:
+            time.sleep(ADVISORY_REFRESH_SECONDS)
+            try:
+                pages = advisory_program.pages(force=True, width=RES_W, height=RES_H)
+                with cache_lock:
+                    advisory_pages = pages
+                    advisory_index = 0
+                    cached_images["advisories"] = pages[0].copy()
+                if selected_key == "advisories":
+                    redraw_needed.set()
+                log.info("Detailed NWS advisory pages refreshed")
+            except Exception:
+                log.exception("Unable to refresh detailed NWS advisory pages")
+
+    if loop:
+        threading.Thread(target=_advisory_thread, daemon=True).start()
+
     # Start background renderer
     if refresh > 0:
         t = threading.Thread(target=_render_thread, daemon=True)
@@ -883,7 +906,6 @@ def run_inky_display(loop: bool = True):
 
     # Bind buttons
     buttons = {name: _bind_button(name, key) for name, key in INKY_BUTTON_IMAGE_KEYS.items()}
-    buttons["D"] = _bind_button("D", None)
     if buttons.get("A") is None or buttons.get("D") is None:
         log.warning("A+D GitHub update gesture unavailable; both buttons must bind")
     if not any(buttons.values()):
@@ -908,6 +930,7 @@ def run_inky_display(loop: bool = True):
             log.exception("Failed to refresh Inky display: %s", exc)
 
     update_chord.close()
+    status_light.close()
     for button in buttons.values():
         if button is not None:
             button.close()
@@ -984,5 +1007,7 @@ if __name__ == "__main__":
         run_inky_display(loop=True)
     else:
         start_server()
+
+
 
 
