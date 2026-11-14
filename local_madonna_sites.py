@@ -127,7 +127,7 @@ INKY_BUTTON_PINS = {
     "C": int(os.getenv("INKY_BUTTON_C_PIN", "16")),
     "D": int(os.getenv("INKY_BUTTON_D_PIN", "24")),
 }
-INKY_UPDATE_HOLD_SECONDS = float(os.getenv("INKY_UPDATE_HOLD_SECONDS", "3"))
+INKY_UPDATE_HOLD_SECONDS = float(os.getenv("INKY_UPDATE_HOLD_SECONDS", "10"))
 INKY_BUTTON_HOLD_TIME = float(os.getenv("INKY_BUTTON_HOLD", "0.05"))
 INKY_BUTTON_BOUNCE = float(os.getenv("INKY_BUTTON_BOUNCE", "0.05"))
 INKY_BUTTON_PULL_UP = bool(int(os.getenv("INKY_BUTTON_PULL_UP", "0")))

@@ -21,7 +21,7 @@ def request_update():
 
 class ButtonUpdateChord:
     """One update per A+D hold, rearmed only after both buttons are released."""
-    def __init__(self, hold_seconds=3, callback=request_update, timer_factory=threading.Timer):
+    def __init__(self, hold_seconds=10, callback=request_update, timer_factory=threading.Timer):
         if hold_seconds <= 0:
             raise ValueError('Update hold duration must be positive')
         self.hold_seconds = hold_seconds

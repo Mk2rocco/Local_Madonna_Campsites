@@ -35,12 +35,12 @@ class ChordTests(unittest.TestCase):
         self.assertFalse(self.chord.release('D'))
         self.assertEqual(self.timers, [])
 
-    def test_three_second_chord_in_either_order(self):
+    def test_ten_second_chord_in_either_order(self):
         for order in [('A', 'D'), ('D', 'A')]:
             with self.subTest(order=order):
                 for name in order:
                     self.chord.press(name)
-                self.assertEqual(self.timers[-1].delay, 3)
+                self.assertEqual(self.timers[-1].delay, 10)
                 self.timers[-1].callback()
                 self.timers[-1].callback()
                 self.assertFalse(self.chord.release('A'))

@@ -63,7 +63,7 @@ def main():
     if Path('/etc/systemd/system/campsites-auto-update.timer').exists():
         subprocess.run(['systemctl', 'disable', '--now', 'campsites-auto-update.timer'], check=True)
     print('Installed manual updates. Restart campsites.service to load the button handler.')
-    print('Hold A and D (buttons 1 and 4) together for three seconds to check GitHub.')
+    print('Hold A and D (buttons 1 and 4) together for ten seconds to check GitHub.')
 
 
 if __name__ == '__main__':

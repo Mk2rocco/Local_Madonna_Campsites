@@ -244,7 +244,7 @@ and grants the installing user permission to request only that specific service
 start without a password. If the previous nightly timer was installed, the
 installer disables it. Do not install the nightly option as well.
 
-**Hold A and D together for three seconds, then release both.** The Pi checks
+**Hold A and D together for ten seconds, then release both.** The Pi checks
 the checkout's `origin/main` and installs new merged commits. A running display
 service is stopped during the update and started again afterward. No new
 commits means no restart. Release both buttons before requesting another check.
@@ -254,7 +254,7 @@ no action. The gesture works while the display program is running in Inky mode.
 
 Defaults are BCM GPIO 5 for A and GPIO 24 for D. Override with
 `INKY_BUTTON_A_PIN` and `INKY_BUTTON_D_PIN` if your wiring differs. Adjust the
-hold duration with `INKY_UPDATE_HOLD_SECONDS` (default `3`, must be positive).
+hold duration with `INKY_UPDATE_HOLD_SECONDS` (default `10`, must be positive).
 No new Python dependency is required.
 
 The update job preserves tracked local edits and refuses divergent history or
