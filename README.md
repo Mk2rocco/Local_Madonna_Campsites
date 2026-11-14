@@ -220,3 +220,61 @@ Run the scraper regression tests after installing the normal dependencies:
 ```bash
 python -m unittest -v test_reservation_grid
 ```
+
+
+## Automatic nightly updates on the Pi
+
+After merging the nightly updater pull request, SSH into the Pi as the account
+that owns the checkout (for example, `ssh james@campsitepi.local`) and run:
+
+```bash
+cd ~/Local_Madonna_Campsites
+git pull --ff-only
+sudo python3 scripts/install_auto_update.py
+systemctl list-timers campsites-auto-update.timer
+```
+
+This installs a systemd timer that checks the checkout's GitHub `origin/main`
+each night between **3:00 and 3:10 AM America/Los_Angeles**, including daylight
+saving changes. If the Pi was off at the scheduled time, systemd makes up the
+missed check when it next starts. The Pi needs an internet connection and Git
+access that works without a password prompt. A public HTTPS clone works without
+extra credentials.
+
+Only merged commits on `main` are installed. If there is a new commit, the
+updater stops a running `campsites.service`, fast-forwards the checkout, and
+starts the service again. An inactive display service stays inactive. No new
+commit means no restart. Git commands run as your normal Pi account, so updates
+do not create root-owned files in the checkout.
+
+The updater refuses to change another branch, overwrite tracked local edits,
+or replace divergent/local commit history. Fetch failures leave the display
+running, and a failed merge attempts to restore a previously running service.
+Generated untracked PNGs do not prevent updates; an untracked file that conflicts
+with a new upstream file is preserved and the update fails. Package/dependency
+installation remains manual.
+
+Check now or inspect the latest logs:
+
+```bash
+sudo systemctl start campsites-auto-update.service
+journalctl -u campsites-auto-update.service -n 50 --no-pager
+```
+
+Disable automatic updates:
+
+```bash
+sudo systemctl disable --now campsites-auto-update.timer
+```
+
+The installer copies the updater to `/usr/local/lib/campsites` and installs
+`campsites-auto-update.service` and `campsites-auto-update.timer` under
+`/etc/systemd/system`. Run the installer again if a future release changes the
+updater itself. This uses the existing `campsites.service` name from the setup
+above; install that display service first.
+
+Developer checks (no Pi hardware or third-party packages needed):
+
+```bash
+python3 -m unittest -v test_auto_update
+```
