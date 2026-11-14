@@ -220,3 +220,69 @@ Run the scraper regression tests after installing the normal dependencies:
 ```bash
 python -m unittest -v test_reservation_grid
 ```
+
+
+## Update GitHub code using buttons 1 and 4 (A + D)
+
+This option installs updates only when requested. There is no nightly update
+schedule. On the Inky Impression, buttons 1 and 4 are **A and D**.
+
+After merging the button-update pull request, SSH into the Pi and run once:
+
+```bash
+cd ~/Local_Madonna_Campsites
+git pull --ff-only
+sudo python3 scripts/install_button_update.py
+sudo systemctl restart campsites.service
+```
+
+Run the installer from the account that owns the checkout and runs the display
+service (or the checkout owner if the display service runs as root). This uses
+the existing `campsites.service` name. The installer creates a separate
+`campsites-update.service`, copies its helper into `/usr/local/lib/campsites`,
+and grants the installing user permission to request only that specific service
+start without a password. If the previous nightly timer was installed, the
+installer disables it. Do not install the nightly option as well.
+
+**Hold A and D together for ten seconds, then release both.** The Pi checks
+the checkout's `origin/main` and installs new merged commits. A running display
+service is stopped during the update and started again afterward. No new
+commits means no restart. Release both buttons before requesting another check.
+A short simultaneous press does nothing. A alone selects the normal campsite
+view on release; B and C continue to select their views on press. D alone has
+no action. The gesture works while the display program is running in Inky mode.
+
+Defaults are BCM GPIO 5 for A and GPIO 24 for D. Override with
+`INKY_BUTTON_A_PIN` and `INKY_BUTTON_D_PIN` if your wiring differs. Adjust the
+hold duration with `INKY_UPDATE_HOLD_SECONDS` (default `10`, must be positive).
+No new Python dependency is required.
+
+The update job preserves tracked local edits and refuses divergent history or
+branches other than `main`. It uses Git as the checkout owner. GitHub access
+must work without interactive credentials; a public HTTPS clone needs none.
+A fetch failure leaves the display running; a failed merge attempts to restore
+a previously running display service. This is a request to check for an update,
+not an instruction to discard local files or force-reset the checkout.
+
+Inspect the result over SSH:
+
+```bash
+sudo journalctl -u campsites-update.service -n 50 --no-pager
+```
+
+You can request the same update without pressing the buttons:
+
+```bash
+sudo systemctl start campsites-update.service
+```
+
+The updater does not install new dependencies or automatically roll back code
+that fails at application startup. Changing the trigger does not resolve a
+separate startup failure; check `journalctl -u campsites.service` for that error.
+Re-run the installer if future changes update the helper itself.
+
+Run the regression suite with the normal project dependencies installed:
+
+```bash
+python3 -m unittest discover -v
+```
