@@ -14,8 +14,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 log = logging.getLogger(__name__)
 REFRESH_SECONDS = 2 * 60 * 60
-LAT = float(os.getenv('NWS_LAT', '37.01213'))
-LON = float(os.getenv('NWS_LON', '-121.70494'))
+LAT = float(os.getenv('NWS_LAT', '37.01144811108972'))
+LON = float(os.getenv('NWS_LON', '-121.70544157229918'))
 USER_AGENT = os.getenv('NWS_USER_AGENT', 'madonna-campsites/1.0 (admin@example.com)')
 TIMEOUT = float(os.getenv('DATA_TIMEOUT', '8'))
 try:
@@ -105,7 +105,7 @@ def render_pages(alerts, *, fetched_at=None, error=None, width=800, height=480):
     elif error:
         texts = ['Unable to retrieve NWS advisories.\n\nPlease try again later. This does not mean there are no active advisories.']
     else:
-        texts = ['No active NWS advisories.\n\nThere are currently no active NWS alerts for the configured park location.']
+        texts = ['No active NWS advisories.\n\nThere are currently no active NWS alerts for Mount Madonna.']
     chunks = []
     for text in texts:
         lines = wrap_text(text, draw, body, content_width)
@@ -115,7 +115,7 @@ def render_pages(alerts, *, fetched_at=None, error=None, width=800, height=480):
     for index, lines in enumerate(chunks):
         image = Image.new('RGB', (width, height), 'white')
         d = ImageDraw.Draw(image)
-        d.text((margin, 12), 'NWS Advisories', font=title, fill='black')
+        d.text((margin, 12), 'NWS Advisories - Mount Madonna', font=title, fill='black')
         d.line((margin, 48, width - margin, 48), fill='black')
         if error:
             # Short status banner; full API errors remain in logs.

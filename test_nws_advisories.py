@@ -36,6 +36,7 @@ class AdvisoryTests(unittest.TestCase):
         with patch('PIL.ImageDraw.ImageDraw.text', autospec=True) as text:
             render_pages([])
         self.assertIn('No active NWS advisories.', ' '.join(c.args[2] for c in text.call_args_list))
+        self.assertIn('for Mount Madonna.', ' '.join(c.args[2] for c in text.call_args_list))
         with patch('PIL.ImageDraw.ImageDraw.text', autospec=True) as text:
             render_pages([], error='HTTP error')
         drawn = ' '.join(c.args[2] for c in text.call_args_list)
@@ -69,7 +70,7 @@ class AdvisoryTests(unittest.TestCase):
             self.assertEqual(get.call_count, 1)
             program.pages()
         self.assertEqual(get.call_count, 2)
-        self.assertEqual(get.call_args.kwargs['params']['point'], '37.01213,-121.70494')
+        self.assertEqual(get.call_args.kwargs['params']['point'], '37.01144811108972,-121.70544157229918')
 
     @patch('nws_advisories.requests.get')
     def test_failed_refresh_keeps_and_labels_last_success(self, get):
