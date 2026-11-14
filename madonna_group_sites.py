@@ -18,7 +18,7 @@ from functools import lru_cache
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
-from bs4 import BeautifulSoup
+from reservation_grid import parse_grid, load_grids
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 log = logging.getLogger("group-sites")
@@ -250,7 +250,7 @@ def BODY_BOLD(size: Optional[int] = None):
 def build_url(for_dt: datetime) -> str:
     day = _mmddyyyy(for_dt)
     params = {
-        "res_type": "QQQ",
+        "reservation_type": "camping",
         "park_idno": PARK_ID,
         "StartDate": day,
     }
@@ -278,11 +278,12 @@ def _remember_group_sites(labels: Iterable[str]) -> None:
 
 def fetch_html(for_dt: datetime) -> Optional[str]:
     global _last_payload, _last_fetched_utc, _last_error
-    url = build_url(for_dt)
     try:
-        r = requests.get(url, timeout=DATA_TIMEOUT, headers={"User-Agent":"trmnl-group-sites/1.0"})
-        r.raise_for_status()
-        _last_payload = r.text
+        _last_payload = load_grids(
+            "https://gooutsideandplay.org/reservations/sites_grid_pub.asp",
+            {"park_idno": PARK_ID, "StartDate": _mmddyyyy(for_dt)}, timeout=DATA_TIMEOUT,
+            headers={"User-Agent": "trmnl-group-sites/1.0"},
+        )
         _last_fetched_utc = datetime.now(timezone.utc)
         _last_error = None
         return _last_payload
@@ -323,126 +324,12 @@ def fetch_weather_advisories() -> List[str]:
     return _last_advisories
 
 
-STATUS_CLASS_PRIORITIES = {"cell_block", "cell_booked", "closedSite"}
-
-
-def _normalize_status_from_classes(class_list: Iterable[str]) -> str:
-    classes = tuple(sorted(c for c in class_list if c in STATUS_CLASS_PRIORITIES))
-    if not classes:
-        return "Unknown"
-
-    class_map = {
-        ("cell_block",): "Vacant",
-        ("cell_block", "cell_booked"): "Reserved",
-        ("cell_block", "closedSite"): "Closed",
-    }
-
-    if classes in class_map:
-        return class_map[classes]
-
-    if "cell_booked" in classes:
-        return "Reserved"
-    if "closedSite" in classes:
-        return "Closed"
-    if "cell_block" in classes:
-        return "Vacant"
-    return "Unknown"
-
-
-def _normalize_status(cell_text: str) -> str:
-    text = cell_text.strip().upper()
-    if not text:
-        return "Vacant"
-
-    open_tokens = {"O", "OPEN", "AVAILABLE", "VACANT", "V"}
-    if text in open_tokens or text.startswith("OPEN"):
-        return "Vacant"
-    if "AVAILABLE" in text and "UNAVAILABLE" not in text:
-        return "Vacant"
-
-    if "CLOSED" in text or "CLOSE" in text or "CLSD" in text:
-        return "Closed"
-
-    if text in {"X", "R", "H"}:
-        return "Reserved"
-
-    reserved_keywords = ("RES", "HOLD", "FULL", "UNAVAIL", "CLOSE")
-    if any(keyword in text for keyword in reserved_keywords):
-        return "Reserved"
-
-    return "Reserved"
-
-
 def parse_group_site_statuses(html: str, target_label: str) -> Dict[str, str]:
-    soup = BeautifulSoup(html, "html.parser")
-    table = soup.find("table", id="site_grid_table") or soup.find("table")
-    if not table:
-        return {}
-    thead = table.find("thead")
-    header_cells: List = []
-    if thead:
-        header_row = thead.find("tr")
-        if header_row:
-            header_cells = header_row.find_all(["th", "td"])
-    if not header_cells:
-        first_row = table.find("tr")
-        if first_row:
-            header_cells = first_row.find_all(["th", "td"])
-
-    header_labels: List[str] = []
-    for cell in header_cells:
-        pieces = [part.strip() for part in cell.stripped_strings if part.strip()]
-        header_labels.append(" ".join(pieces))
-
-    normalized_target = " ".join(target_label.split()).strip()
-    target_compact = normalized_target.replace(" ", "").casefold()
-    target_tokens = normalized_target.split()
-    target_day_name = target_tokens[0][:3].casefold() if target_tokens else ""
-    target_day_number = next((tok for tok in target_tokens if tok.isdigit()), "")
-
-    col_index = None
-    for idx, label in enumerate(header_labels):
-        normalized_label = " ".join(label.split()).strip()
-        label_compact = normalized_label.replace(" ", "").casefold()
-        label_tokens = normalized_label.split()
-        label_day_name = label_tokens[0][:3].casefold() if label_tokens else ""
-        label_day_number = next((tok for tok in label_tokens if tok.isdigit()), "")
-
-        if normalized_label.casefold() == normalized_target.casefold():
-            col_index = idx
-            break
-        if label_compact == target_compact:
-            col_index = idx
-            break
-        if target_day_number and label_day_number == target_day_number and label_day_name == target_day_name:
-            col_index = idx
-            break
-
-    if col_index is None:
-        col_index = 1 if header_labels and header_labels[0].lower().startswith("site") else 0
-
-    if thead and header_cells and table.find("tbody"):
-        body_rows = table.find("tbody").find_all("tr")
-    else:
-        all_rows = table.find_all("tr")
-        body_rows = all_rows[1:] if len(all_rows) > 1 else []
-
     statuses: Dict[str, str] = {}
-    for tr in body_rows:
-        tds = tr.find_all(["td", "th"])
-        if not tds:
-            continue
-        label_raw = " ".join(tds[0].get_text(strip=True).split())
-        label = canonical_label(label_raw)
-        if not label or not label[0].isalpha():
-            continue
-        if col_index >= len(tds):
-            continue
-        cell = tds[col_index]
-        status = _normalize_status_from_classes(cell.get("class", []))
-        if status == "Unknown":
-            status = _normalize_status(cell.get_text(strip=True))
-        statuses[label] = status
+    for raw_label, status in parse_grid(html, target_label):
+        label = canonical_label(raw_label)
+        if label and label[0].isalpha():
+            statuses[label] = status.title()
 
     if statuses:
         _remember_group_sites(statuses.keys())
@@ -774,3 +661,4 @@ def write_group_sites_png(force: bool = False, output_path: Optional[str] = None
 if __name__ == "__main__":
     path = write_group_sites_png(force=True)
     print(f"Saved {path}")
+

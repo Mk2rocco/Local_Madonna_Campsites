@@ -22,6 +22,7 @@ from functools import lru_cache
 import requests
 from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
+from reservation_grid import parse_grid, load_grids
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 log = logging.getLogger("uvas-canyon")
@@ -188,7 +189,7 @@ def COLUMN_HEADER_FONT():
 BASE_URL = "https://gooutsideandplay.org"
 GRID_PATH = "/reservations/sites_grid_pub.asp"
 BASE_QUERY = {
-    "res_type": "QQQ",
+    "reservation_type": "camping",
     "park_idno": PARK_ID,
 }
 DAY_USE_CATEGORY_ID = os.getenv("DAY_USE_CATEGORY_ID", "1081134")
@@ -199,15 +200,7 @@ def load_table_for_date(for_dt: datetime) -> Optional[str]:
     params["StartDate"] = _mmddyyyy(for_dt)
     url = f"{BASE_URL}{GRID_PATH}"
     headers = {"User-Agent": "trmnl-avail/1.0"}
-    response = requests.get(url, params=params, timeout=DATA_TIMEOUT, headers=headers)
-    response.raise_for_status()
-
-    soup = BeautifulSoup(response.text, "html.parser")
-    table = soup.find("table", {"class": "data_table"})
-    if table is None:
-        log.warning("No reservation table found for %s", params["StartDate"])
-        return None
-    return str(table)
+    return load_grids(url, params, timeout=DATA_TIMEOUT, headers=headers)
 
 
 _last_payload: Optional[str] = None
@@ -409,30 +402,6 @@ class SiteStatus:
         return any(ch.isdigit() for ch in self.label)
 
 
-STATUS_CLASS_WHITELIST = {"cell_block", "cell_booked", "closedSite"}
-STATUS_MAP = {
-    ("cell_block",): "vacant",
-    ("cell_block", "cell_booked"): "reserved",
-    ("cell_block", "closedSite"): "closed",
-}
-
-
-def _normalize_status(class_list: List[str]) -> str:
-    classes = tuple(sorted(c for c in class_list if c in STATUS_CLASS_WHITELIST))
-    if not classes:
-        return "unknown"
-    for key, val in STATUS_MAP.items():
-        if tuple(sorted(key)) == classes:
-            return val
-    if "cell_booked" in classes:
-        return "reserved"
-    if "closedSite" in classes:
-        return "closed"
-    if "cell_block" in classes:
-        return "vacant"
-    return "unknown"
-
-
 def _site_sort_key(label: str) -> Tuple[int, str, str]:
     label = label.strip()
     num_match = re.match(r"(\d+)", label)
@@ -550,65 +519,8 @@ def render_image(
     tomorrow_table = tomorrow_html or ""
 
     def collect_site_statuses(table_html: str, column_label: str) -> List[SiteStatus]:
-        if not table_html:
-            return []
-
-        soup = BeautifulSoup(table_html, "html.parser")
-        table = soup.find("table")
-        if not table:
-            return []
-
-        thead = table.find("thead")
-        header_row = None
-        if thead:
-            header_rows = thead.find_all("tr")
-            if header_rows:
-                header_row = header_rows[-1]
-        if header_row is None:
-            header_row = table.find("tr")
-        if header_row is None:
-            return []
-
-        raw_headers = header_row.find_all(["th", "td"])
-        headers = [" ".join(h.get_text(separator=" ", strip=True).split()) for h in raw_headers]
-        normalized_target = re.sub(r"\s+", "", column_label.lower()) if column_label else ""
-        numeric_target = re.sub(r"\D", "", column_label) if column_label else ""
-        col_index: Optional[int] = None
-        for idx, header in enumerate(headers):
-            normalized_header = re.sub(r"\s+", "", header.lower())
-            if normalized_header == normalized_target:
-                col_index = idx
-                break
-            if numeric_target:
-                header_numeric = re.sub(r"\D", "", header)
-                if header_numeric and header_numeric == numeric_target:
-                    col_index = idx
-                    break
-        if col_index is None:
-            col_index = 1 if headers and headers[0].lower().startswith("site") else 0
-
-        tbody = table.find("tbody")
-        if tbody:
-            data_rows = tbody.find_all("tr")
-        else:
-            all_rows = table.find_all("tr")
-            data_rows = all_rows[1:] if len(all_rows) > 1 else []
-
-        result: List[SiteStatus] = []
-        for tr in data_rows:
-            tds = tr.find_all(["td", "th"])
-            if not tds:
-                continue
-            label = " ".join(tds[0].get_text(strip=True).split())
-            if not label:
-                continue
-            if col_index >= len(tds):
-                continue
-            status = _normalize_status(tds[col_index].get("class", []))
-            if status == "unknown":
-                continue
-            result.append(SiteStatus(label=label, status=status))
-
+        result = [SiteStatus(label=label, status=status)
+                  for label, status in parse_grid(table_html, column_label)]
         result.sort(key=lambda s: _site_sort_key(s.label))
         return result
 
@@ -874,3 +786,4 @@ def write_uvas_png(force: bool = False, output_path: Optional[str] = None) -> st
 if __name__ == "__main__":
     path = write_uvas_png(force=True)
     print(f"Saved {path}")
+

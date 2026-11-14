@@ -200,3 +200,23 @@ sudo systemctl enable --now campsites.service
 ```
 
 This will keep the Inky display updated as soon as the network is available.
+
+
+## Reservation website compatibility
+
+The scraper uses the current public grid request (`reservation_type=camping`)
+and reads the redesigned `grid_table`, month/day headings, and `td_cell_*`
+status classes. Group and Uvas views also request `reservation_type=day_use`
+so picnic areas remain visible. No browser automation or new dependency is required.
+
+Campsite labels exclude the campground description appended by the website.
+Booked, held, in-cart, and departure-only cells are treated as unavailable
+(reserved); departure-only dates cannot start an overnight stay. Unknown
+status classes and missing date columns are omitted rather than assumed vacant.
+Legacy grid markup remains supported.
+
+Run the scraper regression tests after installing the normal dependencies:
+
+```bash
+python -m unittest -v test_reservation_grid
+```
