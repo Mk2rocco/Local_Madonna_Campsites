@@ -331,8 +331,9 @@ The advisory program fetches on startup and every **two hours**, including when
 another view is selected. Its schedule is independent of the three existing
 views, whose renderers, footer advisories, and configured refresh timing are
 unchanged. The fourth view uses the existing `NWS_LAT`, `NWS_LON`,
-`NWS_USER_AGENT`, `DATA_TIMEOUT`, and `TZ_NAME` settings. Defaults cover the
-same Mt. Madonna point as the primary campsite view.
+`NWS_USER_AGENT`, `DATA_TIMEOUT`, and `TZ_NAME` settings. The detailed advisory view defaults to Mount Madonna at
+`37.01144811108972, -121.70544157229918`. Its title and no-alert message name
+Mount Madonna. `NWS_LAT` and `NWS_LON` overrides still take precedence.
 
 A/B/C retain their current views. The ten-second A+D GitHub update gesture
 and update-status flashing remain available. Short D presses change pages;
