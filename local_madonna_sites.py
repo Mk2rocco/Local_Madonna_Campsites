@@ -32,7 +32,7 @@ from typing import Dict, List, Optional
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
-from bs4 import BeautifulSoup
+from reservation_grid import parse_grid
 # These renderers are also available as stand-alone modules, but we keep
 # light-weight wrappers here so a single process can generate and cache all
 # three PNGs without bouncing between multiple entry points.
@@ -213,7 +213,7 @@ def BODY():
 BASE_URL = "https://gooutsideandplay.org"
 GRID_PATH = "/reservations/sites_grid_pub.asp"
 BASE_QUERY = {
-    "res_type": "QQQ",
+    "reservation_type": "camping",
     "park_idno": PARK_ID,
 }
 
@@ -280,28 +280,7 @@ GROUP_NAMES = {
     '4': "Tan Oak",
 }
 
-STATUS_CLASS_WHITELIST = {"cell_block", "cell_booked", "closedSite"}
 STATUS_KEYS = ("vacant", "reserved", "closed")
-STATUS_MAP = {
-    ("cell_block",): "vacant",
-    ("cell_block", "cell_booked"): "reserved",
-    ("cell_block", "closedSite"): "closed",
-}
-
-def _normalize_status(class_list: List[str]) -> str:
-    classes = tuple(sorted(c for c in class_list if c in STATUS_CLASS_WHITELIST))
-    if not classes:
-        return "unknown"
-    for key, val in STATUS_MAP.items():
-        if tuple(sorted(key)) == classes:
-            return val
-    if "cell_booked" in classes:
-        return "reserved"
-    if "closedSite" in classes:
-        return "closed"
-    if "cell_block" in classes:
-        return "vacant"
-    return "unknown"
 
 def _status_sort_key(value: str) -> tuple[int, str]:
     """Sort shorter labels first, then lexicographically."""
@@ -316,63 +295,9 @@ def parse_number_site_status(html: str, target_label: str) -> Dict[str, Dict[str
     out: Dict[str, Dict[str, List[str]]] = {
         v: {status: [] for status in STATUS_KEYS} for v in GROUP_NAMES.values()
     }
-    soup = BeautifulSoup(html, "html.parser")
-    table = soup.find("table", id="site_grid_table") or soup.find("table")
-    if not table:
-        return out
-
-    thead = table.find("thead")
-    header_row = None
-    if thead:
-        header_rows = thead.find_all("tr")
-        if header_rows:
-            header_row = header_rows[-1]
-    if header_row is None:
-        header_row = table.find("tr")
-    if header_row is None:
-        return out
-
-    raw_headers = header_row.find_all(["th", "td"])
-    headers = [" ".join(h.get_text(separator=" ", strip=True).split()) for h in raw_headers]
-    normalized_target = re.sub(r"\s+", "", target_label.lower())
-    numeric_target = re.sub(r"\D", "", target_label)
-    col_index = None
-    for idx, header in enumerate(headers):
-        normalized_header = re.sub(r"\s+", "", header.lower())
-        if normalized_header == normalized_target:
-            col_index = idx
-            break
-        if numeric_target:
-            header_numeric = re.sub(r"\D", "", header)
-            if header_numeric and header_numeric == numeric_target:
-                col_index = idx
-                break
-    if col_index is None:
-        col_index = 1 if headers and headers[0].lower().startswith("site") else 0
-
-    tbody = table.find("tbody")
-    if tbody:
-        data_rows = tbody.find_all("tr")
-    else:
-        all_rows = table.find_all("tr")
-        data_rows = all_rows[1:] if len(all_rows) > 1 else []
-
-    for tr in data_rows:
-        tds = tr.find_all(["td", "th"])
-        if not tds:
-            continue
-        label = " ".join(tds[0].get_text(strip=True).split())
-        if not label or not label[0].isdigit():
-            continue
-        group_key = label[0]
-        if group_key not in GROUP_NAMES:
-            continue
-        if col_index >= len(tds):
-            continue
-        status = _normalize_status(tds[col_index].get("class", []))
-        if status == "unknown":
-            continue
-        out[GROUP_NAMES[group_key]][status].append(label)
+    for label, status in parse_grid(html, target_label):
+        if label[0] in GROUP_NAMES:
+            out[GROUP_NAMES[label[0]]][status].append(label)
 
     for group in out.values():
         for status in STATUS_KEYS:
@@ -1035,3 +960,4 @@ if __name__ == "__main__":
         run_inky_display(loop=True)
     else:
         start_server()
+
