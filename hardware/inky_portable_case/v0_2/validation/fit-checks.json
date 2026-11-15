@@ -26,6 +26,12 @@
   "connector_envelope_vs_connector_retainer": 0,
   "plug_envelope_vs_body": 0,
   "old_side_charge_opening_closed": true,
+  "top_led_aperture_clear": 0,
+  "former_bottom_led_hole_closed": true,
+  "led_aperture_center_mm": [
+    -0.0,
+    58.6
+  ],
   "assembled_depth_mm": 44.0,
   "rear_plate_thickness_mm": 3.0,
   "keyhole_boss_inward_projection_mm": 3.0

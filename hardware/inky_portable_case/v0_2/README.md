@@ -31,6 +31,9 @@ this is a new independent parametric model, not an exact-fit mesh derivative.
 - Wall mounting remains **110 mm centres** with **10 mm lift-off travel**.
   Existing wall-screw locations can be retained if the head fit is correct.
 
+The LED aperture is aligned with the **onboard LED at the top centre** of the
+display PCB (3 mm below its top edge). The former lower-front opening is closed.
+
 Only the USB-C connector's lip projects below the case. Button caps still
 project past the side; maximum width with controls is approximately 199.4 mm.
 The rear panel STL is 6 mm deep at its bosses even though the broad plate is
@@ -82,7 +85,7 @@ are for printing individually; use the assembly STEP to view alignment.
 | button_plunger.stl | 4 | Same geometry as v0.1 |
 | button_cap.stl | 4 | Same geometry as v0.1 |
 | connector_retainer.stl | 1 | Captures connector rear with two screws |
-| led_blank.stl | 0 or 1 | Use if no 3 mm status LED is installed |
+| led_blank.stl | 0 or 1 | Optional cover for the onboard LED aperture |
 | connector_fit_coupon.stl | 1 first | Actual bottom pocket and screw bosses |
 | keyhole_fit_coupon.stl | 1 first | Checks wall screw-head fit |
 | pcb_fit_gauge.stl | 1 first | Checks PCB outline and mounting centres |
@@ -149,8 +152,9 @@ rather than scaling the entire model, which would move mounting centres.
 6. Fit Pi and UPS with normal header/pogo-pin hardware. Keep the battery in its
    intended position and leave expansion space; do not compress the pouch.
    Route and insulate wiring away from screw bosses, plungers and sharp edges.
-7. Fit the existing properly wired 3 mm status LED at the lower-front hole,
-   or use the printed blank. No electrical circuitry is included in this case.
+7. Check that the top-centre aperture aligns with the display's onboard status
+   LED. No added LED or wiring is required. Use the printed blank only if you
+   prefer to cover the light. No electrical circuitry is included in this case.
 8. Dry-fit the rear panel and check both inward keyhole bosses clear the real
    stack and wiring. Fit the four M3 flat-head screws without forcing the lid.
 9. Check all views and the charging operation. The UPS power switch remains

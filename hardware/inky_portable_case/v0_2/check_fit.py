@@ -32,6 +32,13 @@ no_collision('plug_envelope_vs_body',s['body'],plug)
 probe=cq.Workplane('XY').box(1,1,1).translate((-p['outer_w']/2+1.4,23,22))
 assert volume(s['body'].intersect(probe))>.99
 checks['old_side_charge_opening_closed']=True
+# Regression: former lower LED opening is closed and top-centre aperture open.
+old_led=cq.Workplane('XY').box(1,1,1).translate((0,-65,1.5))
+assert volume(s['body'].intersect(old_led))>.99
+new_led=cq.Workplane('XY').center(-p['led_x'],p['led_y']).circle(1.4).extrude(3.2).translate((0,0,-.1))
+no_collision('top_led_aperture_clear',s['body'],new_led)
+checks['former_bottom_led_hole_closed']=True
+checks['led_aperture_center_mm']=[-p['led_x'],p['led_y']]
 checks['assembled_depth_mm']=outer
 checks['rear_plate_thickness_mm']=p['back_thickness']
 checks['keyhole_boss_inward_projection_mm']=p['keyhole_local_thickness']-p['back_thickness']

@@ -21,7 +21,7 @@ P = dict(board_w=174.2, board_h=123.2, board_hole_inset=3.0,
          connector_screw_spacing=24.,keyhole_local_thickness=6.,keyhole_boss_wall=3.,
          keyhole_spacing=110.0,keyhole_y=40.0,
          keyhole_entry_d=8.4, keyhole_stem_d=4.2, keyhole_travel=10.0,
-         led_hole_d=3.2, led_x=0.0, led_y=-65.0)
+         led_hole_d=3.2, led_x=0.0, led_y=58.6)
 if (ROOT/'parameters.json').exists():
     P.update(json.loads((ROOT/'parameters.json').read_text()))
 OUT=ROOT/'exports'; OUT.mkdir(exist_ok=True)
@@ -143,7 +143,7 @@ cap=cap.cut(cyl_x(2.3,cap_inner-1.8,cap_inner+.1))
 cap=cap.cut(cyl_x(1.1,cap_inner-4.1,cap_inner+.1))
 cap=cap.cut(cyl_x(2.1,cap_inner-4.1,cap_inner-2.8))
 
-# Optional solid LED blank. A 3 mm LED may be mounted here instead.
+# Optional blank for the top-centre onboard status LED viewing aperture.
 led_blank=cyl_z(2.4,-.8,0,P['led_x'],P['led_y']).union(cyl_z(1.5,0,2.6,P['led_x'],P['led_y']))
 # Cheap fit gauge for PCB footprint and corner centres before committing to body.
 gauge=rounded(P['board_w']+4,P['board_h']+4,1.2,r=3)
