@@ -1,0 +1,92 @@
+{
+  "body": {
+    "bounds_mm": [
+      194.20000019999998,
+      143.20000019999998,
+      41.0000001
+    ],
+    "volume_mm3": 108386.30750082004,
+    "valid": true
+  },
+  "back_panel": {
+    "bounds_mm": [
+      194.2,
+      143.2,
+      6.000000000000007
+    ],
+    "volume_mm3": 85497.22207168309,
+    "valid": true
+  },
+  "button_plunger": {
+    "bounds_mm": [
+      11.5,
+      8.5,
+      8.5
+    ],
+    "volume_mm3": 232.54134271718596,
+    "valid": true
+  },
+  "button_cap": {
+    "bounds_mm": [
+      4.0,
+      12.0,
+      7.0
+    ],
+    "volume_mm3": 243.597159344777,
+    "valid": true
+  },
+  "connector_retainer": {
+    "bounds_mm": [
+      32.0,
+      8.000000000000014,
+      16.0
+    ],
+    "volume_mm3": 1366.467241890444,
+    "valid": true
+  },
+  "connector_fit_coupon": {
+    "bounds_mm": [
+      40.00000000000001,
+      6.5,
+      22.0
+    ],
+    "volume_mm3": 2321.759091673895,
+    "valid": true
+  },
+  "keyhole_fit_coupon": {
+    "bounds_mm": [
+      24.0,
+      34.0,
+      6.0
+    ],
+    "volume_mm3": 4346.5414971506925,
+    "valid": true
+  },
+  "led_blank": {
+    "bounds_mm": [
+      4.8,
+      4.800000000000004,
+      3.4000000000000004
+    ],
+    "volume_mm3": 32.854775971242056,
+    "valid": true
+  },
+  "pcb_fit_gauge": {
+    "bounds_mm": [
+      178.2,
+      127.2,
+      1.2
+    ],
+    "volume_mm3": 4870.426725756545,
+    "valid": true
+  },
+  "button_fit_coupon": {
+    "bounds_mm": [
+      2.8000000000000114,
+      20.0,
+      16.0
+    ],
+    "volume_mm3": 841.0221285621807,
+    "valid": true
+  }
+}

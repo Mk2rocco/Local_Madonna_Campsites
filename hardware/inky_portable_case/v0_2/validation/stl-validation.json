@@ -1,0 +1,152 @@
+{
+  "keyhole_fit_coupon.stl": {
+    "triangles": 644,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "extent_mm": [
+      24.0,
+      34.0,
+      6.0
+    ]
+  },
+  "back_panel.stl": {
+    "triangles": 5532,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      6.372693883282144e-15
+    ],
+    "extent_mm": [
+      194.1999969482422,
+      143.1999969482422,
+      5.999999999999994
+    ]
+  },
+  "body.stl": {
+    "triangles": 11706,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      9.999999406318238e-08,
+      9.999999406318238e-08,
+      1.0000000116860974e-07
+    ],
+    "extent_mm": [
+      194.1999968482422,
+      143.1999968482422,
+      40.9999999
+    ]
+  },
+  "button_fit_coupon.stl": {
+    "triangles": 352,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "extent_mm": [
+      2.799999952316284,
+      20.0,
+      16.0
+    ]
+  },
+  "pcb_fit_gauge.stl": {
+    "triangles": 2064,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "extent_mm": [
+      178.1999969482422,
+      127.19999694824219,
+      1.2000000476837158
+    ]
+  },
+  "button_cap.stl": {
+    "triangles": 1352,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      -3.8749152710571434e-16
+    ],
+    "extent_mm": [
+      7.0,
+      12.0,
+      4.0
+    ]
+  },
+  "button_plunger.stl": {
+    "triangles": 1592,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      -2.4424907071149036e-16
+    ],
+    "extent_mm": [
+      8.5,
+      8.5,
+      11.5
+    ]
+  },
+  "connector_retainer.stl": {
+    "triangles": 2384,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      -2.767796622183674e-16
+    ],
+    "extent_mm": [
+      32.0,
+      16.0,
+      8.0
+    ]
+  },
+  "connector_fit_coupon.stl": {
+    "triangles": 2048,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      7.105427357601002e-15,
+      0.0,
+      -3.8749152710571434e-16
+    ],
+    "extent_mm": [
+      39.99999999999999,
+      22.0,
+      6.5
+    ]
+  },
+  "led_blank.stl": {
+    "triangles": 668,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      5.773159728050814e-15,
+      0.0
+    ],
+    "extent_mm": [
+      4.800000190734863,
+      4.800000190734858,
+      3.4000000953674316
+    ]
+  }
+}
