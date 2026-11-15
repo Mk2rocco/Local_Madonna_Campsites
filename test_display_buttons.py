@@ -24,7 +24,7 @@ class DisplayButtonTests(unittest.TestCase):
         inky.show.side_effect = during_show
         with patch.multiple(display, _INKY_AVAILABLE=True, _INKY_BUTTONS_AVAILABLE=True,
                             _USER_LED_AVAILABLE=False, INKY_REFRESH_SECONDS=0,
-                            Button=button, auto_detect_inky=Mock(return_value=inky),
+                            BlockingButtons=Mock(return_value=Mock(button=button)), auto_detect_inky=Mock(return_value=inky),
                             ButtonUpdateChord=Mock(return_value=chord),
                             AdvisoryProgram=Mock(return_value=Mock(pages=Mock(return_value=[Image.new('RGB', (800, 480))]))),
                             render_all_pngs=Mock(return_value={'madonna': Image.new('RGB', (800, 480))})):
@@ -58,7 +58,7 @@ class DisplayButtonTests(unittest.TestCase):
         program = Mock(pages=Mock(return_value=[image(50), image(100)]))
         with patch.multiple(display, _INKY_AVAILABLE=True, _INKY_BUTTONS_AVAILABLE=True,
                             _USER_LED_AVAILABLE=False, INKY_REFRESH_SECONDS=0,
-                            Button=button, auto_detect_inky=Mock(return_value=inky),
+                            BlockingButtons=Mock(return_value=Mock(button=button)), auto_detect_inky=Mock(return_value=inky),
                             AdvisoryProgram=Mock(return_value=program),
                             render_all_pngs=Mock(return_value={'madonna': image(0), 'group': image(150)})):
             with patch('local_madonna_sites.threading.Thread'):
@@ -96,4 +96,5 @@ class DisplayButtonTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
 

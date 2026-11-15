@@ -58,7 +58,7 @@ local_madonna_sites.py`).
   * `Pillow`
   * `beautifulsoup4`
   * `inky` (installable from Pimoroni's package repository)
-  * `lgpio` (for stable GPIOZero button handling)
+  * `lgpio` (for the optional GPIOZero status LED and existing Inky support)
   * `flask` **(optional; only required for the HTTP server mode)**
 * Network access to `https://gooutsideandplay.org` and `https://api.weather.gov`
 
@@ -172,9 +172,9 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-Install `lgpio` inside the same virtual environment used by the service (this
-prevents GPIOZero from falling back to slower drivers and fixes button edge
-notifications):
+Install `lgpio` inside the same virtual environment used by the service for
+the optional GPIOZero status LED and existing Inky support. Button handling
+uses blocking Linux GPIO events directly and does not use the GPIOZero factory:
 
 ```bash
 source ~/.venv/campsites/bin/activate
@@ -189,8 +189,9 @@ sudo systemctl daemon-reload
 sudo systemctl restart campsites.service
 ```
 
-With `GPIOZERO_PIN_FACTORY=lgpio` the Inky buttons will bind cleanly and you
-should see log entries such as `[INFO] Button B pressed; switching to group`
+Keep `GPIOZERO_PIN_FACTORY=lgpio` for the existing LED/display integration.
+For buttons, startup logs show `Blocking GPIO edge events active on /dev/gpiochip0`.
+You should still see entries such as `[INFO] Button B pressed; switching to group`
 when pressing the physical controls.
 
 Enable it with:
@@ -358,3 +359,39 @@ git pull --ff-only
 sudo python3 scripts/install_button_update.py
 sudo systemctl restart campsites.service
 ```
+
+
+
+## Lower idle CPU use: blocking GPIO button events
+
+The four display buttons use Linux GPIO character-device v2 edge events
+(kernel 5.10 or newer, including Raspberry Pi OS Bookworm). One shared thread
+blocks in a selector with **no idle timeout** until a press/release event arrives.
+It no longer registers GPIOZero/lgpio alerts, avoiding their repeated 0.5 ms
+polling. Short timed waits occur only while an actual button transition is
+being debounced. The A+D hold uses its existing single ten-second timer.
+
+No new package, service setting, or installer step is required. After merging,
+use the installed A+D update gesture, or pull the code and restart
+`campsites.service` normally. The four views, status LED, update gesture, and
+scheduled data refreshes retain their existing behavior.
+
+The default GPIO chip is `/dev/gpiochip0`, appropriate for the Pi Zero 2 W.
+Set `INKY_GPIO_CHIP` if using another chip device. Existing
+`INKY_BUTTON_A_PIN` through `INKY_BUTTON_D_PIN`, `INKY_BUTTON_PULL_UP`, and
+`INKY_BUTTON_BOUNCE` settings remain supported. Keep your working pull-up
+setting (for example, `INKY_BUTTON_PULL_UP=1`); it controls both bias and the
+active-low press polarity. The update hold is still controlled by
+`INKY_UPDATE_HOLD_SECONDS` (default 10). The old unused GPIOZero
+`INKY_BUTTON_HOLD` parameter is no longer read.
+
+The service user must have access to the GPIO chip, and the button lines
+must not be held by another process. An unavailable device, permission error,
+or unsupported kernel is logged clearly; there is no fallback to frequent
+polling. GPIOZero/lgpio can remain installed for the existing LED/display
+support. Button monitoring no longer depends on their event threads.
+
+Validation includes real OS selector/pipe tests showing no repeated idle
+wakeups, debounced press/release callbacks, pull-up/pull-down request flags,
+and the ten-second chord and early-release cancellation. Hardware GPIO
+operation, idle CPU, and current draw must still be checked on the Pi.

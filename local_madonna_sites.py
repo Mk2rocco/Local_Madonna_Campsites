@@ -38,6 +38,7 @@ from reservation_grid import parse_grid
 # three PNGs without bouncing between multiple entry points.
 from button_update import ButtonUpdateChord, request_update
 from status_light import StatusLight
+from blocking_buttons import BlockingButtons
 from nws_advisories import AdvisoryProgram, REFRESH_SECONDS as ADVISORY_REFRESH_SECONDS
 import madonna_group_sites
 import uvas_canyon_reservations
@@ -52,14 +53,13 @@ except Exception as exc:  # pragma: no cover - hardware optional
     _INKY_IMPORT_ERROR = str(exc)
 
 try:
-    from gpiozero import Button, LED
-    _INKY_BUTTONS_AVAILABLE = True
+    from gpiozero import LED
     _USER_LED_AVAILABLE = True
 except Exception:
-    Button = None
     LED = None
-    _INKY_BUTTONS_AVAILABLE = False
     _USER_LED_AVAILABLE = False
+
+_INKY_BUTTONS_AVAILABLE = True
 
 # Flask is optional—only needed for server mode.
 _flask_spec = importlib.util.find_spec("flask")
@@ -130,7 +130,6 @@ INKY_BUTTON_PINS = {
     "D": int(os.getenv("INKY_BUTTON_D_PIN", "24")),
 }
 INKY_UPDATE_HOLD_SECONDS = float(os.getenv("INKY_UPDATE_HOLD_SECONDS", "10"))
-INKY_BUTTON_HOLD_TIME = float(os.getenv("INKY_BUTTON_HOLD", "0.05"))
 INKY_BUTTON_BOUNCE = float(os.getenv("INKY_BUTTON_BOUNCE", "0.05"))
 INKY_BUTTON_PULL_UP = bool(int(os.getenv("INKY_BUTTON_PULL_UP", "0")))
 USER_LED_PIN = int(os.getenv("USER_LED_PIN", "13"))
@@ -806,17 +805,18 @@ def run_inky_display(loop: bool = True):
         hold_seconds=INKY_UPDATE_HOLD_SECONDS, callback=_request_github_update,
     )
 
+    button_bank = BlockingButtons(chip=os.getenv("INKY_GPIO_CHIP", "/dev/gpiochip0"))
+
     def _bind_button(name: str, key: Optional[str]):
-        if not _INKY_BUTTONS_AVAILABLE or Button is None:
+        if not _INKY_BUTTONS_AVAILABLE:
             log.debug("GPIO buttons unavailable; skipping binding for %s", name)
             return None
         pin = INKY_BUTTON_PINS.get(name)
         if pin is None:
             return None
         try:
-            btn = Button(
+            btn = button_bank.button(
                 pin,
-                hold_time=INKY_BUTTON_HOLD_TIME,
                 bounce_time=INKY_BUTTON_BOUNCE,
                 pull_up=INKY_BUTTON_PULL_UP,
             )
@@ -909,7 +909,9 @@ def run_inky_display(loop: bool = True):
     if buttons.get("A") is None or buttons.get("D") is None:
         log.warning("A+D GitHub update gesture unavailable; both buttons must bind")
     if not any(buttons.values()):
-        log.warning("No Inky buttons were bound; check wiring or gpiozero configuration")
+        log.warning("No Inky buttons were bound; check GPIO chip, permissions, pin use, and wiring")
+
+    button_bank.start()
 
     # Main loop: ONLY handles redraw events
     while True:
@@ -929,6 +931,7 @@ def run_inky_display(loop: bool = True):
         except Exception as exc:  # pragma: no cover - hardware/network issues
             log.exception("Failed to refresh Inky display: %s", exc)
 
+    button_bank.close()
     update_chord.close()
     status_light.close()
     for button in buttons.values():
@@ -1007,6 +1010,7 @@ if __name__ == "__main__":
         run_inky_display(loop=True)
     else:
         start_server()
+
 
 
 
