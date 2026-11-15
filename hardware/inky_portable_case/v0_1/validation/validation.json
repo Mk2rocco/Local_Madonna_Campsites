@@ -1,0 +1,74 @@
+{
+  "body": {
+    "bounds_mm": [
+      194.20000019999998,
+      143.20000019999998,
+      41.0000001
+    ],
+    "volume_mm3": 107145.34840897127,
+    "valid": true
+  },
+  "back_panel": {
+    "bounds_mm": [
+      194.2,
+      143.2,
+      7.800000000000011
+    ],
+    "volume_mm3": 166631.51770793658,
+    "valid": true
+  },
+  "button_plunger": {
+    "bounds_mm": [
+      11.5,
+      8.5,
+      8.5
+    ],
+    "volume_mm3": 232.54134271718596,
+    "valid": true
+  },
+  "button_cap": {
+    "bounds_mm": [
+      4.0,
+      12.0,
+      7.0
+    ],
+    "volume_mm3": 243.597159344777,
+    "valid": true
+  },
+  "charge_port_plug": {
+    "bounds_mm": [
+      4.099999999999994,
+      27.599999999999998,
+      27.900000000000002
+    ],
+    "volume_mm3": 2054.3512499999997,
+    "valid": true
+  },
+  "led_blank": {
+    "bounds_mm": [
+      4.8,
+      4.800000000000004,
+      3.4000000000000004
+    ],
+    "volume_mm3": 32.854775971242056,
+    "valid": true
+  },
+  "pcb_fit_gauge": {
+    "bounds_mm": [
+      178.2,
+      127.2,
+      1.2
+    ],
+    "volume_mm3": 4870.426725756545,
+    "valid": true
+  },
+  "button_fit_coupon": {
+    "bounds_mm": [
+      2.8000000000000114,
+      20.0,
+      16.0
+    ],
+    "volume_mm3": 841.0221285621807,
+    "valid": true
+  }
+}

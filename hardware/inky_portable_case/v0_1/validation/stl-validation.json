@@ -1,0 +1,122 @@
+{
+  "back_panel.stl": {
+    "triangles": 4520,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      -7.327334743188578e-16
+    ],
+    "extent_mm": [
+      194.1999969482422,
+      143.1999969482422,
+      7.800000190734864
+    ]
+  },
+  "body.stl": {
+    "triangles": 9694,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      9.999999406318238e-08,
+      9.999999406318238e-08,
+      1.0000000116860974e-07
+    ],
+    "extent_mm": [
+      194.1999968482422,
+      143.1999968482422,
+      40.9999999
+    ]
+  },
+  "button_fit_coupon.stl": {
+    "triangles": 352,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "extent_mm": [
+      2.799999952316284,
+      20.0,
+      16.0
+    ]
+  },
+  "pcb_fit_gauge.stl": {
+    "triangles": 2064,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "extent_mm": [
+      178.1999969482422,
+      127.19999694824219,
+      1.2000000476837158
+    ]
+  },
+  "button_cap.stl": {
+    "triangles": 1352,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      -3.8749152710571434e-16
+    ],
+    "extent_mm": [
+      7.0,
+      12.0,
+      4.0
+    ]
+  },
+  "button_plunger.stl": {
+    "triangles": 1592,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      -2.4424907071149036e-16
+    ],
+    "extent_mm": [
+      8.5,
+      8.5,
+      11.5
+    ]
+  },
+  "charge_port_plug.stl": {
+    "triangles": 36,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "extent_mm": [
+      27.899999618530273,
+      27.600000381469727,
+      4.099999904632568
+    ]
+  },
+  "led_blank.stl": {
+    "triangles": 668,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "minimum_mm": [
+      0.0,
+      5.773159728050814e-15,
+      0.0
+    ],
+    "extent_mm": [
+      4.800000190734863,
+      4.800000190734858,
+      3.4000000953674316
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "body_vs_back_panel": 0,
+  "body_vs_charge_port_plug": 0,
+  "body_vs_led_blank": 0,
+  "body_vs_plunger_1": 0,
+  "body_vs_cap_1": 0,
+  "plunger_vs_cap_1": 0,
+  "body_vs_plunger_2": 0,
+  "body_vs_cap_2": 0,
+  "plunger_vs_cap_2": 0,
+  "body_vs_plunger_3": 0,
+  "body_vs_cap_3": 0,
+  "plunger_vs_cap_3": 0,
+  "body_vs_plunger_4": 0,
+  "body_vs_cap_4": 0,
+  "plunger_vs_cap_4": 0,
+  "pcb_envelope_vs_body": 0,
+  "estimated_stack_vs_body": 0,
+  "estimated_stack_vs_back_panel": 0,
+  "estimated_rear_clearance_mm": 8.899999999999999,
+  "blind_keyholes_closed_to_interior": true
+}
