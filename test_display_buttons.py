@@ -117,16 +117,20 @@ class AllButtonHoldTests(unittest.TestCase):
                     holds.append(h)
                     return h
                 inky = Mock(width=800, height=480)
+                light = Mock()
                 def during_show():
                     buttons[pin].when_pressed()
                     active = next(h for h in holds if h.pressed)
+                    light.begin_refresh.assert_not_called()
                     active.timer.fire()
+                    light.begin_refresh.assert_called_once_with()
                     buttons[pin].when_released()
                 inky.show.side_effect = during_show
                 with patch.multiple(display, _INKY_AVAILABLE=True, _INKY_BUTTONS_AVAILABLE=True,
                                     _USER_LED_AVAILABLE=False, INKY_REFRESH_SECONDS=0,
                                     BlockingButtons=Mock(return_value=Mock(button=button)),
                                     auto_detect_inky=Mock(return_value=inky), RefreshHold=hold,
+                                    StatusLight=Mock(return_value=light),
                                     AdvisoryProgram=Mock(return_value=Mock(pages=Mock(return_value=[Image.new('RGB',(800,480))]))),
                                     render_all_pngs=Mock(return_value={'madonna':Image.new('RGB',(800,480))}), log=Mock()):
                     display.run_inky_display(loop=False)

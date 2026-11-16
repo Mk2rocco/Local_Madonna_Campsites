@@ -10,6 +10,7 @@ class StatusLight:
         self.led = led
         self.flash_time = max(0.05, flash_time)
         self.updating = False
+        self.refreshing = False
         self.lock = threading.Lock()
 
     def _blink(self):
@@ -34,22 +35,35 @@ class StatusLight:
     def end_update(self):
         with self.lock:
             self.updating = False
-            self._off()
+            if not self.refreshing:
+                self._off()
+
+    def begin_refresh(self):
+        with self.lock:
+            self.refreshing = True
+            self._blink()
+
+    def end_refresh(self):
+        with self.lock:
+            self.refreshing = False
+            if not self.updating:
+                self._off()
 
     def flash_display(self):
         with self.lock:
-            if self.updating or self.led is None:
+            if self.updating or self.refreshing or self.led is None:
                 return None
             self._blink()
 
         def stop():
             with self.lock:
                 # A pending display timer must not cancel update feedback.
-                if not self.updating:
+                if not self.updating and not self.refreshing:
                     self._off()
         return stop
 
     def close(self):
+        self.end_refresh()
         self.end_update()
         if self.led is not None:
             try:

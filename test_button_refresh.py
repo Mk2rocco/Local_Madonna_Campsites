@@ -45,7 +45,7 @@ class RefreshWorkerTests(unittest.TestCase):
         tree = ast.parse(Path('local_madonna_sites.py').read_text())
         worker = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == '_render_thread')
         namespace = dict(manual_refresh=Mock(), refresh_busy=threading.Event(),
-                         render_lock=threading.Lock(), cache_lock=threading.Lock(),
+                         render_lock=threading.Lock(), cache_lock=threading.Lock(), status_light=Mock(),
                          refresh=7200, cross_refresh=7200, cached_images={},
                          render_all_pngs=Mock(return_value={'madonna':'fresh'}),
                          _refresh_advisories=Mock(), redraw_needed=threading.Event(), log=Mock())
@@ -57,4 +57,22 @@ class RefreshWorkerTests(unittest.TestCase):
         namespace['_refresh_advisories'].assert_called_once_with()
         self.assertEqual(namespace['cached_images']['madonna'], 'fresh')
         self.assertTrue(namespace['redraw_needed'].is_set())
+        self.assertFalse(namespace['refresh_busy'].is_set())
+        namespace['status_light'].end_refresh.assert_called_once_with()
+
+    def test_failed_refresh_still_clears_feedback(self):
+        import ast
+        import threading
+        from pathlib import Path
+        from unittest.mock import Mock
+        tree = ast.parse(Path('local_madonna_sites.py').read_text())
+        worker = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == '_render_thread')
+        namespace = dict(manual_refresh=Mock(), refresh_busy=threading.Event(),
+                         render_lock=threading.Lock(), refresh=7200, cross_refresh=7200,
+                         render_all_pngs=Mock(side_effect=RuntimeError('offline')),
+                         status_light=Mock(), log=Mock())
+        namespace['manual_refresh'].wait.side_effect = [True, SystemExit]
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[worker], type_ignores=[])), '<worker>', 'exec'), namespace)
+        with self.assertRaises(SystemExit): namespace['_render_thread']()
+        namespace['status_light'].end_refresh.assert_called_once_with()
         self.assertFalse(namespace['refresh_busy'].is_set())

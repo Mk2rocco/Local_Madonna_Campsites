@@ -410,3 +410,7 @@ chord before holding either button alone for five seconds. Network fetching and
 the e-paper refresh still take time; requests while a refresh is pending/running
 are ignored. Scheduled refreshes continue. The hold timers do not add idle GPIO
 polling. Button D still cycles detailed advisory pages on short presses.
+
+At the five-second threshold, the status LED starts flashing immediately while
+the manual data refresh runs. It stops when fetching/rendering completes (also
+on failure); the display refresh retains its normal flashing feedback.
