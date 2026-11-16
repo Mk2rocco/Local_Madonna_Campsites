@@ -75,3 +75,30 @@ class StatusLightTests(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
+
+class DataRefreshLightTests(unittest.TestCase):
+    def test_refresh_blinks_immediately_and_ignores_old_display_timer(self):
+        led = Mock()
+        light = StatusLight(led)
+        old_stop = light.flash_display()
+        led.reset_mock()
+        light.begin_refresh()
+        led.blink.assert_called_once_with(on_time=.15, off_time=.15, background=True)
+        old_stop()
+        led.off.assert_not_called()
+        self.assertIsNone(light.flash_display())
+        light.end_refresh()
+        led.off.assert_called_once()
+
+    def test_overlapping_software_update_keeps_flashing_until_both_finish(self):
+        for first in ('refresh', 'update'):
+            led = Mock(); light = StatusLight(led)
+            light.begin_refresh(); light.begin_update()
+            getattr(light, 'end_' + first)()
+            led.off.assert_not_called()
+            getattr(light, 'end_' + ('update' if first == 'refresh' else 'refresh'))()
+            led.off.assert_called_once()
+
+    def test_no_led_refresh_supported(self):
+        light = StatusLight(None)
+        light.begin_refresh(); light.end_refresh(); light.close()

@@ -814,6 +814,7 @@ def run_inky_display(loop: bool = True):
             log.info("Data refresh already pending or running")
             return
         log.info("Single button held for 5 seconds: requesting immediate data refresh")
+        status_light.begin_refresh()
         manual_refresh.set()
 
     refresh_holds = {name: RefreshHold(_request_data_refresh) for name in INKY_BUTTON_IMAGE_KEYS}
@@ -916,6 +917,8 @@ def run_inky_display(loop: bool = True):
             except Exception:
                 log.exception("Background render thread error")
             finally:
+                if requested:
+                    status_light.end_refresh()
                 refresh_busy.clear()
 
     # Detailed advisories have their own two-hour cadence. Existing views keep
