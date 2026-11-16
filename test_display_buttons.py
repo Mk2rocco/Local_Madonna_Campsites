@@ -44,7 +44,7 @@ class DisplayButtonTests(unittest.TestCase):
         inky = Mock(width=800, height=480)
         def tap(pin):
             buttons[pin].when_pressed()
-            if pin in (5, 24):
+            if pin in (5, 6, 16, 24):
                 buttons[pin].when_released()
         actions = [lambda: tap(24), lambda: tap(24), lambda: tap(24),
                    lambda: tap(6), lambda: tap(5)]
@@ -59,6 +59,7 @@ class DisplayButtonTests(unittest.TestCase):
         with patch.multiple(display, _INKY_AVAILABLE=True, _INKY_BUTTONS_AVAILABLE=True,
                             _USER_LED_AVAILABLE=False, INKY_REFRESH_SECONDS=0,
                             BlockingButtons=Mock(return_value=Mock(button=button)), auto_detect_inky=Mock(return_value=inky),
+                            RefreshHold=Mock(return_value=Mock(release=Mock(return_value=True))),
                             AdvisoryProgram=Mock(return_value=program),
                             render_all_pngs=Mock(return_value={'madonna': image(0), 'group': image(150)})):
             with patch('local_madonna_sites.threading.Thread'):
@@ -86,6 +87,7 @@ class DisplayButtonTests(unittest.TestCase):
         with patch.multiple(display, _INKY_AVAILABLE=True, _INKY_BUTTONS_AVAILABLE=False,
                             _USER_LED_AVAILABLE=False, INKY_REFRESH_SECONDS=0,
                             auto_detect_inky=Mock(return_value=inky),
+                            RefreshHold=Mock(return_value=Mock(release=Mock(return_value=True))),
                             AdvisoryProgram=Mock(return_value=program),
                             render_all_pngs=Mock(return_value={'madonna': image})):
             with patch('local_madonna_sites.threading.Thread', side_effect=thread):
@@ -98,3 +100,35 @@ if __name__ == '__main__':
     unittest.main()
 
 
+
+class AllButtonHoldTests(unittest.TestCase):
+    def test_every_single_button_requests_refresh_only_after_hold(self):
+        from functools import partial
+        from button_refresh import RefreshHold
+        from test_button_refresh import Timer
+        for pin in (5, 6, 16, 24):
+            with self.subTest(pin=pin):
+                buttons, holds = {}, []
+                def button(number, **kwargs):
+                    buttons[number] = Mock()
+                    return buttons[number]
+                def hold(callback):
+                    h = RefreshHold(callback, timer_factory=Timer)
+                    holds.append(h)
+                    return h
+                inky = Mock(width=800, height=480)
+                def during_show():
+                    buttons[pin].when_pressed()
+                    active = next(h for h in holds if h.pressed)
+                    active.timer.fire()
+                    buttons[pin].when_released()
+                inky.show.side_effect = during_show
+                with patch.multiple(display, _INKY_AVAILABLE=True, _INKY_BUTTONS_AVAILABLE=True,
+                                    _USER_LED_AVAILABLE=False, INKY_REFRESH_SECONDS=0,
+                                    BlockingButtons=Mock(return_value=Mock(button=button)),
+                                    auto_detect_inky=Mock(return_value=inky), RefreshHold=hold,
+                                    AdvisoryProgram=Mock(return_value=Mock(pages=Mock(return_value=[Image.new('RGB',(800,480))]))),
+                                    render_all_pngs=Mock(return_value={'madonna':Image.new('RGB',(800,480))}), log=Mock()):
+                    display.run_inky_display(loop=False)
+                    display.log.info.assert_any_call('Single button held for 5 seconds: requesting immediate data refresh')
+                    self.assertFalse(any(c.args and c.args[0] == 'NWS advisory page %s/%s selected' for c in display.log.info.call_args_list))

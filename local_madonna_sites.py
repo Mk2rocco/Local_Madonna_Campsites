@@ -39,6 +39,7 @@ from reservation_grid import parse_grid
 from button_update import ButtonUpdateChord, request_update
 from status_light import StatusLight
 from blocking_buttons import BlockingButtons
+from button_refresh import RefreshHold
 from nws_advisories import AdvisoryProgram, REFRESH_SECONDS as ADVISORY_REFRESH_SECONDS
 import madonna_group_sites
 import uvas_canyon_reservations
@@ -735,6 +736,9 @@ def run_inky_display(loop: bool = True):
     redraw_needed.set()  # draw initial image
     cache_lock = threading.Lock()
     display_lock = threading.Lock()
+    render_lock = threading.Lock()
+    manual_refresh = threading.Event()
+    refresh_busy = threading.Event()
 
     def _setup_user_led():
         if not _USER_LED_AVAILABLE or LED is None:
@@ -805,6 +809,17 @@ def run_inky_display(loop: bool = True):
         hold_seconds=INKY_UPDATE_HOLD_SECONDS, callback=_request_github_update,
     )
 
+    def _request_data_refresh():
+        if refresh_busy.is_set() or manual_refresh.is_set():
+            log.info("Data refresh already pending or running")
+            return
+        log.info("Single button held for 5 seconds: requesting immediate data refresh")
+        manual_refresh.set()
+
+    refresh_holds = {name: RefreshHold(_request_data_refresh) for name in INKY_BUTTON_IMAGE_KEYS}
+    pressed_buttons = set()
+    multi_button_presses = set()
+
     button_bank = BlockingButtons(chip=os.getenv("INKY_GPIO_CHIP", "/dev/gpiochip0"))
 
     def _bind_button(name: str, key: Optional[str]):
@@ -842,41 +857,66 @@ def run_inky_display(loop: bool = True):
                 log.info("Button %s pressed; switching to %s", name, key)
                 redraw_needed.set()
 
-            if name in {"A", "D"}:
-                btn.when_pressed = lambda: update_chord.press(name)
+            def _press():
+                pressed_buttons.add(name)
+                if name in {"A", "D"}:
+                    update_chord.press(name)
+                if len(pressed_buttons) == 1:
+                    refresh_holds[name].press()
+                else:
+                    multi_button_presses.update(pressed_buttons)
+                    for hold in refresh_holds.values():
+                        hold.close()
 
-                def _release():
-                    if update_chord.release(name):
-                        _handler()
+            def _release():
+                short_press = refresh_holds[name].release()
+                chord_allows_selection = update_chord.release(name) if name in {"A", "D"} else True
+                pressed_buttons.discard(name)
+                was_multi = name in multi_button_presses
+                multi_button_presses.discard(name)
+                if short_press and chord_allows_selection and not was_multi:
+                    _handler()
 
-                btn.when_released = _release
-            else:
-                btn.when_pressed = _handler
+            btn.when_pressed = _press
+            btn.when_released = _release
             log.info("Inky button %s bound to pin %s", name, pin)
             return btn
         except Exception as exc:  # pragma: no cover - hardware specific
             log.warning("Unable to bind button %s on pin %s: %s", name, pin, exc)
             return None
 
-    # Background thread: periodically refresh cached PNGs
+    def _refresh_advisories():
+        nonlocal advisory_pages, advisory_index
+        pages = advisory_program.pages(force=True, width=RES_W, height=RES_H)
+        with cache_lock:
+            advisory_pages = pages
+            advisory_index = 0
+            cached_images["advisories"] = pages[0].copy()
+
+    # The event wakes immediately for manual requests, with no idle polling.
     def _render_thread():
-        nonlocal cached_images
-        if refresh <= 0:
-            log.info("INKY_REFRESH_SECONDS <= 0; background renderer not started")
-            return
         while True:
+            requested = manual_refresh.wait(timeout=refresh if refresh > 0 else None)
+            refresh_busy.set()
+            manual_refresh.clear()
             try:
-                time.sleep(refresh)
-                log.info("Background refresh: rendering all PNGs")
-                new_images = render_all_pngs(force=True, refresh_window=cross_refresh)
-                if new_images:
-                    with cache_lock:
-                        cached_images.update(new_images)
-                    log.info("Background refresh updated images: %s", list(new_images.keys()))
-                    # Optional: force a redraw with the current selection using fresh data
+                with render_lock:
+                    log.info("%s data refresh: rendering all PNGs", "Manual" if requested else "Background")
+                    new_images = render_all_pngs(force=True, refresh_window=cross_refresh)
+                    if new_images:
+                        with cache_lock:
+                            cached_images.update(new_images)
+                    if requested:
+                        try:
+                            _refresh_advisories()
+                        except Exception:
+                            log.exception("Unable to refresh detailed NWS advisory pages")
                     redraw_needed.set()
-            except Exception as exc:
-                log.exception("Background render thread error: %s", exc)
+                    log.info("Data refresh complete")
+            except Exception:
+                log.exception("Background render thread error")
+            finally:
+                refresh_busy.clear()
 
     # Detailed advisories have their own two-hour cadence. Existing views keep
     # their configured timing and continue to use their existing renderers.
@@ -885,11 +925,8 @@ def run_inky_display(loop: bool = True):
         while True:
             time.sleep(ADVISORY_REFRESH_SECONDS)
             try:
-                pages = advisory_program.pages(force=True, width=RES_W, height=RES_H)
-                with cache_lock:
-                    advisory_pages = pages
-                    advisory_index = 0
-                    cached_images["advisories"] = pages[0].copy()
+                with render_lock:
+                    _refresh_advisories()
                 if selected_key == "advisories":
                     redraw_needed.set()
                 log.info("Detailed NWS advisory pages refreshed")
@@ -900,7 +937,7 @@ def run_inky_display(loop: bool = True):
         threading.Thread(target=_advisory_thread, daemon=True).start()
 
     # Start background renderer
-    if refresh > 0:
+    if loop:
         t = threading.Thread(target=_render_thread, daemon=True)
         t.start()
 
@@ -933,6 +970,8 @@ def run_inky_display(loop: bool = True):
 
     button_bank.close()
     update_chord.close()
+    for hold in refresh_holds.values():
+        hold.close()
     status_light.close()
     for button in buttons.values():
         if button is not None:

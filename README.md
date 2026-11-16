@@ -395,3 +395,18 @@ Validation includes real OS selector/pipe tests showing no repeated idle
 wakeups, debounced press/release callbacks, pull-up/pull-down request flags,
 and the ten-second chord and early-release cancellation. Hardware GPIO
 operation, idle CPU, and current draw must still be checked on the Pi.
+
+## Refresh data immediately
+
+- Release **any single button before five seconds** to switch to its view using
+  cached data. No data is fetched for a short press.
+- Hold **any single button for five seconds** to force fresh campsite, group-site,
+  Uvas and detailed NWS advisory data, then redraw the selected view. A long hold
+  does not change the selected view. Release before requesting another refresh.
+- Hold **A+D together for ten seconds** to check GitHub for software updates.
+
+Pressing a second button cancels all single-button refresh timers. Start the A+D
+chord before holding either button alone for five seconds. Network fetching and
+the e-paper refresh still take time; requests while a refresh is pending/running
+are ignored. Scheduled refreshes continue. The hold timers do not add idle GPIO
+polling. Button D still cycles detailed advisory pages on short presses.
